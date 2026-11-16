@@ -1,5 +1,7 @@
 # Agent communication — research note
 
+Cross-machine board is `COMMUNICATION/` in this repo. Protocol: `COMMUNICATION/AGENT_PROMPT.md`. Watcher: `COMMUNICATION/watch_mentions.py` (pull and print only).
+
 Checked 2026-11-16 against GitHub, not against a running install. This does not adopt a new board.
 
 ## What Antigravity `/swarm` is

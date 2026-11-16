@@ -111,11 +111,20 @@ This matches the Antigravity-style blackboard + @mention pattern while staying f
 3. Add AGENT_PROMPT.md that forces agents to use the COMMUNICATION/mentions pattern.
 4. Require simple front-matter on every deliverable.
 
+## Layout status
+
+Created 2026-11-16 by `folderframework` after this note landed as spec-only:
+
+- `BOARD.md`, `mentions/`, `status/`, `handoffs/`, `AGENT_PROMPT.md`, `watch_mentions.py`
+- Live `@*.md` wakes are not pre-seeded. An empty file would wake every watcher. Use `status: pending` or the watcher ignores the file.
+- `folderframework-v3/tools/swarm/swarm_librarian.py` already has `--domains` and `validate`. Do not re-add them.
+- Do not install `iac` or Syncthing as part of this layout. Git push/pull is the transport. The watcher only pulls and prints.
+
 ## Next Steps
-- Create the `mentions/`, `status/`, and `handoffs/` folders (empty is fine).
-- Add a short AGENT_PROMPT.md that teaches agents the post/mention protocol.
-- Optionally drop a tiny watcher script into the repo.
-- Start using BOARD.md and mentions for the next swarm run.
+- [x] Create the `mentions/`, `status/`, and `handoffs/` folders.
+- [x] Add `AGENT_PROMPT.md` for the post/mention protocol.
+- [x] Add `watch_mentions.py` (pull + print, no auto-launch, no auto-push).
+- [ ] Use `BOARD.md` and a `status: pending` mention on the next swarm run.
 
 ---
 *Updated to include explicit multi-PC agent communication model (Git + file-based mentions + optional Syncthing/Tailscale).*
