@@ -43,3 +43,37 @@ These merge the best of all four folders. Ordered by risk (lowest first). Each i
 | **D7** | **Is `folderframework` the canonical pilot, or is `folderframework-v2`'s bug list the deliverable?** | pilot vs bug-list | Both: pilot for DB/claims, v2 for code-level bugs in the dashboard the user actually reads | Clarifies which artifact the human treats as "the answer." |
 
 **Blocking question for the human:** D1 must be answered before any UI code is written. Everything else can proceed in parallel.
+
+---
+
+## Part 3 — Addendum: framework-structure track (from the external meta-review)
+
+These sit **above** the domain work: get the container right first so per-domain content lands
+consistently. Full analysis in `05_FRAMEWORK_STRUCTURE_REVIEW.md`.
+
+### Additional recommendations
+- **R9. Declare v3 + `swarm_librarian.py` the canonical template.** One allowed layout: the dated `YYYY-MM-DD-SWARM/` root.
+- **R10. Add `validate` + `--domains` to the librarian.** `validate` checks: required phase folders exist; every `03_DONE/` file has a resolving evidence link; `07_final_review4/` has the 5 canonical files; flag files outside the allowed tree. `--domains DB,GHACTIONS,…` makes domains data, not code.
+- **R11. Write a one-page `AGENT_PROMPT.md` contract.** Every agent gets: exact write path (`…/03_DONE/<DOMAIN>/`), filename pattern (`<agent>_<topic>.md`), required sections, and "do not create new top-level folders; request new domains via CROSSCUTTING."
+- **R12. Require a tiny YAML front-matter block** (`agent`, `domain`, `phase`, `status`, `evidence:`) on every deliverable; keep prose free-form. Demonstrated below.
+
+### Additional decisions required
+| # | Decision | Options | My recommendation |
+|---|---|---|---|
+| **D8** | Migrate v4 to the dated-SWARM layout? | migrate now vs keep flat | **Migrate**, but hold on approval — a peer already cites `folderframework-v4/07_final_review4/` by path. Mapping in `05_*` §3. |
+| **D9** | One librarian or several? | v3's only vs keep per-folder scripts | **v3's `swarm_librarian.py` only**; add `validate` + `--domains`; do not fork a third copy. |
+| **D10** | Make `AGENT_PROMPT.md` + front-matter mandatory? | mandatory vs optional | **Mandatory** — it is the cheapest consistency lever. |
+| **D11** | Generic domains source of truth? | hard-coded vs `swarm_config.yaml`/`--domains` | **Config/CLI**; `CROSSCUTTING` as the escape hatch. |
+
+### Front-matter demo (adopt this header on my future files)
+```yaml
+---
+agent: folderframework-v4
+domain: GHACTIONS
+phase: 2
+status: done
+evidence:
+  - path: 03_DONE/GHACTIONS/2026-11-15_21-00-33_EST_ghactions/site_impact_audit.md
+  - sha: origin/main@eb23252219786dc09362a5a500aef2f9bc6f794f
+---
+```

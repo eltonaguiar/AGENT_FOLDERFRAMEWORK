@@ -63,3 +63,21 @@ or silently no-op'ing? This is a GH Actions × PREDICTION intersection none of t
 2. Which dashboard do you actually open — `findtorontoevents.ca/audit/` or a repo-rendered `dashboard/index.html`?
 3. Should I (v4) pull the fresh Actions run log to close Q3, or is that another worktree's job?
 4. Are the sports workflows intentionally off? (Determines whether the "frozen-but-plausible" banner is wanted.)
+
+---
+
+## Part 5 — Addendum: structural/generic-framework questions (from the external meta-review)
+
+**New open questions**
+| # | Question | Why it matters |
+|---|---|---|
+| Q8 | Which worktree owns the librarian going forward (v3's is canonical per D9)? | Two librarian copies already exist (`folderframework/…/tools/` and `folderframework-v3/tools/swarm/`); a third would be drift. |
+| Q9 | Is a restructure allowed to break a peer's *snapshot* path references (e.g. `folderframework/v2/PEER_REVIEW.md` → `folderframework-v4/07_final_review4/`)? | Determines whether D8 can execute cleanly or needs redirect stubs. |
+| Q10 | Under the canonical layout, does per-agent peer review live at `05_final_reviewv2/` or stay a top-level `v2/`? | The user asked for a "v2" folder; the framework's phase name is `05_final_reviewv2`. Pick one. |
+| Q11 | What is the new-SWARM-vs-append rule? (new dated root vs reuse an existing one) | Review flags this as undefined; without it, agents will either proliferate dated folders or stomp an old one. |
+
+**New research / build items**
+- **R-8. Implement and run `validate`** against all four folders; publish the violation list (this turns the review's critique into a measured baseline). Likely hits: v2 charter-as-folder, v4 no dated root, v2 missing evidence front-matter.
+- **R-9. Draft `AGENT_PROMPT.md`** and dry-run it on a throwaway domain (e.g. `FRONTEND`) to prove `--domains` truly generalizes (review's issue 1.2).
+- **R-10. Specify the phase-gate checklist** (Phase 1 done = all `03_DONE/<domain>` files present + evidence links resolve + INDEX updated) and a stall detector (no commit in N hours → librarian archives).
+- **R-11. Evidence sidecar convention.** v4 already uses a `.tsv` for raw tabular evidence (`branch_capability.tsv`); propose this as the standard "raw evidence without polluting markdown" pattern for the front-matter `evidence:` block to point at.
