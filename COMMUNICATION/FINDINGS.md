@@ -5,7 +5,7 @@
 
 ## Summary
 
-The AGENT_FOLDERFRAMEWORK implements a Swarm / Isolated-Worktree Framework for multi-agent collaboration (artifacts over chat, git worktrees, phased reviews). This document adds a concrete **multi-PC communication model** so agents running on different machines (desktop, ASUS GX10, laptops, etc.) can post, mention, and coordinate without shared memory or a central chat server.
+The AGENT_FOLDERFRAMEWORK implements a Swarm / Isolated-Worktree Framework for multi-agent collaboration (artifacts over chat, git worktrees, phased reviews). This document covers multi-PC communication: Git for durable files, and a separate messaging bus for live post/@mention/wake.
 
 ## Current Structure (unchanged)
 
@@ -15,116 +15,84 @@ The AGENT_FOLDERFRAMEWORK implements a Swarm / Isolated-Worktree Framework for m
 
 ## Multi-PC Agent Communication Model
 
-The framework already treats the Git repository as the durable blackboard. Multi-PC coordination extends that idea so agents on separate machines can "post" and "mention" each other with near-zero idle cost.
+The framework already treats the Git repository as the durable blackboard for files/artifacts. Messaging is handled separately so agents can post and mention each other with near-zero idle cost.
 
 ### Core Principles
-1. **Git is the source of truth** — every durable message, handoff, or evidence lives as a markdown (or small JSON) file that is committed and pushed.
-2. **File-based mentions** — agents wake by watching for files that name them (or a role).
-3. **Isolation preserved** — each agent still works in its own worktree; the only shared surface is the committed SWARM + COMMUNICATION folders.
-4. **Zero-token idle** — agents sleep (or poll lightly) until a mention file appears; no constant LLM context burn.
-5. **Works across Windows + Linux** — pure file + git operations; no OS-specific runtime required beyond git and a text editor/agent.
+1. **Git is the source of truth for files** — durable artifacts, plans, evidence, handoffs live as markdown/JSON and are committed/pushed.
+2. **Messaging bus for live coordination** — @mentions, status pings, and wake signals use a lightweight pub/sub bus.
+3. **Isolation preserved** — each agent still works in its own worktree.
+4. **Zero-token idle** — agents sleep until a message arrives on their topic.
+5. **Works across Windows + Linux**.
 
-### Recommended Layout Additions
-```text
-COMMUNICATION/
-├── FINDINGS.md                  # this file
-├── BOARD.md                     # append-only shared board (latest posts at bottom)
-├── mentions/
-│   ├── @librarian.md              # wake the librarian
-│   ├── @db-agent.md
-│   ├── @gha-agent.md
-│   ├── @all.md                    # broadcast
-│   └── @group-reviewers.md
-├── status/
-│   ├── desktop-i9.heartbeat.md
-│   ├── gx10.heartbeat.md
-│   └── legion.heartbeat.md
-└── handoffs/
-    └── 2026-11-16-db-to-audit.md
-```
+### File Dropping (Git)
+Git push/pull remains the transport for all durable files. Agents commit results and pull before starting work.
 
-### How Agents Post and Mention Each Other
-1. **Post to the board**  
-   Agent appends a short message to `COMMUNICATION/BOARD.md` (or writes a new file under `handoffs/`) and commits + pushes.
+### Messaging Bus Recommendation
 
-2. **Mention / wake another agent**  
-   Create or overwrite a file under `mentions/@<agent-or-role>.md` containing:
-   ```markdown
-   --- 
-   from: db-agent
-   to: @librarian
-   timestamp: 2026-11-16T01:50:00Z
-   priority: normal
-   ---
-   Ghost-row analysis is in 03_DONE/DB/. Please collect and index.
-   ```
-   Then commit + push. The target agent (or a lightweight watcher) sees the file and wakes.
+**Primary recommendation: MQTT (Mosquitto) + swarmbus**
 
-3. **Broadcast**  
-   Write to `mentions/@all.md` or `mentions/@group-reviewers.md`.
+- Perfect match for Antigravity-style post / @mention / sleep-until-mentioned.
+- Agents publish to topics (`mentions/db-agent`, `mentions/all`, `board/posts`) and subscribe to their own.
+- Instant wake, no polling, peer-symmetric, no orchestrator.
+- Extremely lightweight, excellent Windows + Linux support, works over LAN or Tailscale.
+- swarmbus adds agent-friendly inbox/outbox, archiving, and wake-on-message on top of MQTT.
 
-4. **Heartbeat (optional but useful)**  
-   Each machine periodically overwrites its `status/<machine>.heartbeat.md` with timestamp + current worktree + git SHA so others know it is alive.
+**Repo:** https://github.com/mpesavento/swarmbus  
+**Docs:** https://swarmbus.dev
 
-### Multi-PC Transport Options (ranked)
+**Minimal setup**
+1. Run Mosquitto on one always-on machine (GX10 or desktop).
+2. `pip install swarmbus-py` (or use any MQTT client) on each agent machine.
+3. Agents connect to the broker (Tailscale IP if needed).
 
-| Rank | Method | Latency | Setup | Best for | Notes |
-|------|--------|---------|-------|----------|-------|
-| 1 | **Git push/pull** (canonical) | seconds–minutes | already have the repo | all durable work | Agents just `git pull` before starting and `git push` after writing. Librarian can run on any machine. |
-| 2 | **Syncthing** (or Resilio) on the SWARM + COMMUNICATION folders | seconds | install on each PC, share folder | faster local iteration | File changes appear almost instantly; still commit important milestones to Git. Works Windows + Linux. |
-| 3 | **Tailscale + SMB/NFS** shared drive | sub-second | Tailscale mesh + one shared volume | lowest latency | One machine exports the folder; others mount it. Agents write directly. Still push to Git for history. |
-| 4 | **Lightweight watcher script** | near-real-time | tiny Python/Bash loop or inotify | automatic wake | Script on each machine watches `mentions/` and starts the appropriate agent prompt when a file for it appears. |
+### Comparison: MQTT/swarmbus vs Redis Bus
 
-### Minimal Watcher Pseudocode (run on each PC)
-```bash
-# Example: poll every 30s or use inotifywait / watchdog
-while true; do
-  git pull --quiet
-  if [ -f COMMUNICATION/mentions/@$(hostname).md ] || [ -f COMMUNICATION/mentions/@all.md ]; then
-    # launch agent with the mention content as context
-    # then move the mention file to mentions/processed/
-  fi
-  sleep 30
-done
-```
+You previously used a Redis bus. Here is how it compares:
 
-### Role Mapping Across Machines (example)
-- Desktop (i9 + RTX 5070): heavy DB / prediction / local model inference agents
-- ASUS GX10 (Ubuntu): librarian + evidence agent + long-running watchers
-- Laptop: review / synthesis agents or mobile worktrees
-- Any machine can run any role; the mention files + git are the only coordination surface.
+| Aspect | Redis Pub/Sub | Redis Streams | MQTT (Mosquitto + swarmbus) |
+|--------|---------------|---------------|-----------------------------|
+| **Persistence** | None (fire-and-forget) | Yes (until trimmed) | Yes (QoS 1/2 + retained messages + sessions) |
+| **Wake on message** | Yes (if subscribed) | Yes (XREAD BLOCK) | Excellent (native + swarmbus wake) |
+| **Missed messages while offline** | Lost | Replayable | Retained + session persistence |
+| **Consumer groups / load balancing** | No | Yes | Shared subscriptions available |
+| **Latency** | Extremely low | Extremely low | Very low |
+| **Resource usage** | Low | Low | Very low (Mosquitto is tiny) |
+| **Multi-PC / network** | Good | Good | Excellent (designed for unreliable links) |
+| **Agent-specific features** | DIY | DIY | swarmbus provides inbox/outbox + archive |
+| **Familiarity** | You already used it | You already used it | New but simpler for pure messaging |
+| **Best for** | Simple live broadcast | Durable queues + replay | Mentions, wake, lightweight multi-machine messaging |
 
-### Zero-Token Idle Pattern
-Agents stay asleep (or in a cheap local loop) until a mention file appears. When woken they:
-1. `git pull`
-2. Read the mention + relevant SWARM artifacts
-3. Do the work in their isolated worktree
-4. Write results + a new mention if needed
-5. `git commit && git push`
-6. Go back to sleep
+**Verdict**
+- If you want the absolute simplest "@mention and wake me" with zero polling and minimal ops → **MQTT + swarmbus**.
+- If you already have Redis running and want persistence + consumer groups in one tool you know → **Redis Streams** is excellent and a close second.
+- Redis Pub/Sub alone is too lossy for reliable agent wake-ups (messages disappear if the agent is asleep).
 
-This matches the Antigravity-style blackboard + @mention pattern while staying fully local and git-native.
+Both work. MQTT/swarmbus is the cleaner dedicated messaging layer when Git already handles the durable files. Redis Streams is the stronger choice if you want one familiar system that can also act as a lightweight shared state store.
+
+### Optional File-Based Mentions (fallback)
+The earlier file-based `mentions/` approach still works as a pure-Git fallback, but a real messaging bus is better for live coordination.
 
 ## Other Recommendations (from prior review)
 1. Declare folderframework-v3 as the canonical template.
-2. Extend swarm_librarian.py with `--domains` and a `validate` subcommand.
-3. Add AGENT_PROMPT.md that forces agents to use the COMMUNICATION/mentions pattern.
+2. `swarm_librarian.py` already has `--domains` and `validate`.
+3. Use AGENT_PROMPT.md to teach agents the messaging protocol.
 4. Require simple front-matter on every deliverable.
 
 ## Layout status
 
-Created 2026-11-16 by `folderframework` after this note landed as spec-only:
+Created 2026-11-16:
 
 - `BOARD.md`, `mentions/`, `status/`, `handoffs/`, `AGENT_PROMPT.md`, `watch_mentions.py`
-- Live `@*.md` wakes are not pre-seeded. An empty file would wake every watcher. Use `status: pending` or the watcher ignores the file.
-- `folderframework-v3/tools/swarm/swarm_librarian.py` already has `--domains` and `validate`. Do not re-add them.
-- Do not install `iac` or Syncthing as part of this layout. Git push/pull is the transport. The watcher only pulls and prints.
+- Live `@*.md` wakes are not pre-seeded.
+- Git is the file transport. Messaging bus is separate.
 
 ## Next Steps
 - [x] Create the `mentions/`, `status/`, and `handoffs/` folders.
 - [x] Add `AGENT_PROMPT.md` for the post/mention protocol.
 - [x] Add `watch_mentions.py` (pull + print, no auto-launch, no auto-push).
-- [ ] Use `BOARD.md` and a `status: pending` mention on the next swarm run.
+- [ ] Decide messaging bus: MQTT/swarmbus (recommended) or Redis Streams.
+- [ ] Stand up the chosen bus and wire agents to it.
+- [ ] Use `BOARD.md` + bus mentions on the next swarm run.
 
 ---
-*Updated to include explicit multi-PC agent communication model (Git + file-based mentions + optional Syncthing/Tailscale).*
+*Updated with messaging bus recommendation (MQTT/swarmbus vs Redis Streams) and comparison.*
