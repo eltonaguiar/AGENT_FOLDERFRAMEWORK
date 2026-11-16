@@ -118,22 +118,24 @@ Verdict: useful if we want a pull-based work queue, but does not provide the coo
 
 ## 3. Recommendation for folderframework-v3
 
-### Short term: integrate `iac` as an optional runtime coordination bus
-Reasons:
+> **Updated after user constraint (commit `be4e3dd`):** Do not adopt a second board for this swarm. Kilo’s existing `board_post` / `board_read` plus the `AGENT_FOLDERFRAMEWORK` repo already provide append-only coordination and durable artifacts. The research below is retained because it documents the landscape and the `iac` smoke test proves feasibility, but **adoption is paused** unless non-Kilo agents (Ollama, OpenClaw, Hermes) need to be woken on the same machine.
+
+### Current constraint
+- **Do not install `iac`, SQLite boards, or LangGraph as part of the display PR.**
+- **Do not point any new board at the trading repo as a commit path.**
+- Durable findings stay in `AGENT_FOLDERFRAMEWORK/<worktree>/`; code edits stay in isolated worktrees.
+
+### If the constraint changes later
+The best candidate remains **`iac`**:
 1. **Closest to Antigravity’s zero-token idle + @mention wakeup model.**
 2. **Smallest blast radius:** one C binary, one directory per swarm room, no network deps.
 3. **Complements the file framework:** files remain the durable deliverables; `iac` handles runtime chatter.
 4. **Already ships a Claude Code skill**, so onboarding a Kilo skill is straightforward.
 
-### Medium term: add `agent-message-board` for human-visible threads
-Use it when:
-- A human needs to read the swarm discussion without scrolling a text log.
-- Decisions need explicit acknowledgements from multiple agents.
-- The swarm is large enough that threads and digests help.
-
-### Not now
+### Also paused
+- `agent-message-board` — useful human UI, but adds a second board; wait until a human explicitly wants a web UI.
 - `bmas` / Stigmergic — too heavy, too many moving parts, AGPL-3.0.
-- `ivy-blackboard` — different model (pull/claim vs coordinator-push); revisit if we shift to fully agent-driven claiming.
+- `ivy-blackboard` — different model (pull/claim vs coordinator-push).
 - Replacing the file framework with any board — files stay canonical.
 
 ---
@@ -194,12 +196,14 @@ The user’s main session (or a dedicated coordinator agent) becomes the coordin
 
 Both documents agree: files remain canonical; the board is transient runtime coordination.
 
-## 7. Proposed next step
+## 7. Proposed next step (conditional)
 
-1. **Pilot `iac` on one low-risk swarm mission** (e.g., the next evidence-agent pass from `08_NEXT_ACTIONS.md`).
-2. **Create a Kilo skill wrapper** under `folderframework-v3/tools/swarm/` that installs `iac` and provides `swarm_iac.sh` helper commands (`send`, `recv`, `who`).
-3. **Run a 2-worker + 1 coordinator + 1 verifier smoke test** in `/tmp` and capture the transcript as evidence in `03_DONE/META/`.
-4. If the smoke test succeeds, add an optional `iac` room to the `swarm_librarian.py scaffold output and document it in `AGENT_PROMPT.md`.
+Under the current user constraint, **no adoption action is required**. The research file and smoke test serve as a reference if the constraint is revisited.
+
+If non-Kilo agents (Ollama, OpenClaw, Hermes) later need same-machine wakeup:
+1. Re-evaluate `iac` against Kilo’s native `board_post`/`board_read` and the framework repo.
+2. If a separate bus is justified, pilot `iac` on a throwaway room with 2 workers + 1 coordinator + 1 verifier.
+3. Only then create a Kilo skill wrapper under `folderframework-v3/tools/swarm/`.
 
 ---
 

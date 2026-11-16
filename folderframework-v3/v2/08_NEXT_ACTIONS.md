@@ -28,7 +28,6 @@ Implement the low-risk, display-only fixes and the framework canon now. Pause ev
 | I6 | **Remove or label hardcoded WR/Sharpe** | `enhanced_audit_dashboard.py:106-109` | dev | Hardcoded `win_rate: 55.0` / `sharpe: 0.3` is a display lie. Do **not** "re-fix" L103 (already coalesced in 2026-06-04). *Found by v1/v4.* |
 | I7 | **Add GH Actions push-safety rule to `AGENTS.md`** | source-repo `AGENTS.md` | dev | Never stage `.github/workflows/` wholesale from a worktree that may be behind `origin/main`. v4's stale-fork trap (88k ahead / 15 behind) makes this the highest-leverage guardrail. |
 | I8 | **Land `/audit` deploy concurrency group** | already done in `20f6e1cdad1`; convert to regression watch only | dev | v4's Step 9 and v3's verification confirm it is live on `deploy-competition-to-site.yml` and `deploy-fte-index.yml`. No code change needed; add a watch in `TESTING_PLAN`. |
-| I9 | **Pilot a live agent-communication board (`iac`) + verifier/monitor roles** | per-swarm `iac` room under `2026-11-16-SWARM/comms/`; add verifier (1 per 2–4 workers) and optional monitor | dev/coordinator | Both v3 (`09_AGENT_COMMUNICATION_RESEARCH.md`) and v4 (`09_COMMUNICATION_FRAMEWORKS.md`) independently researched Antigravity `/swarm` and converged on `iac` as the closest match. Smoke test verified build + p2p + broadcast + `?` work-queue. |
 
 ### Phase-A PR grouping
 - **Single PR** for I2–I6 (display-only; no row deletions, no math changes).
@@ -47,6 +46,7 @@ Implement the low-risk, display-only fixes and the framework canon now. Pause ev
 | P5 | Bulk branch pruning (Tier 1: 102 idle ≥90d) | Human / D5 | Project correction `gha_stale_workflow_count` warns against artifact-driven mass actions; needs its own dated swarm. | v4 Tier 0–1; v3 says Tier 0 only (7 merged branches) now, bulk deferred. |
 | P6 | v4 folder migration into dated-SWARM | Human / D2 | Copy-with-SHA is safe, but unilateral moves violate protocol; also peers cite v4 paths. | v1 says copy-not-move; v4 held on D8; v3 agrees copy-if-asked. |
 | P7 | Untracked `.github/workflows/lint.yml` | Human / D6-v4 | As-is it has unbounded `push:` and untracked deps; committing it red on every push. | v4 D6: rewrite or leave untracked. |
+| P8 | Agent-communication board (`iac`) pilot | User constraint `be4e3dd` | Kilo’s native board + `AGENT_FOLDERFRAMEWORK` already cover this swarm. Only justified if non-Kilo agents (Ollama, OpenClaw, Hermes) on this machine need sleep-until-mentioned wakeup. | v3 and v4 independently converged on `iac` as the closest match; smoke test verified. |
 
 ---
 
@@ -103,7 +103,6 @@ Implement the low-risk, display-only fixes and the framework canon now. Pause ev
 - [ ] Canon ratified (human yes).
 - [ ] Phase-A PR (I2–I6) drafted and ready for human review.
 - [ ] Push-safety PR (I7) drafted.
-- [ ] I9 `iac` pilot run and evidence committed with front-matter.
 - [ ] F1 runtime-state pass completed and committed with front-matter.
 - [ ] B2 answered; if `dashboard/index.html` is not authoritative, deprioritize or close v2's dashboard bugs.
 - [ ] A single merged final plan (or master index) exists in one `07_final_review4/` with domain sections.
