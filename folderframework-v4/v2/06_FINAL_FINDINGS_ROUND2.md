@@ -14,7 +14,7 @@
 | `folderframework` | `folderframework/v2/` (PEER_REVIEW, LAYOUT_CONTRACT, AGENT_PROMPT, PHASE_GATES, RECOMMENDATIONS, DECISIONS D1–D14, OPEN_QUESTIONS, FURTHER_RESEARCH) | **complete** | Full pilot + structural contract; strongest decision register. |
 | `folderframework-v2` | `2026-11-16-SWARM/` canonicalized + `05_final_reviewv2/` + filled `07_final_review4/` + `templates/{AGENT_PROMPT,VALIDATE_SPEC,swarm_config}` | **complete** | Canonicalized its layout and produced a real AUDIT plan with 9 root causes. |
 | `folderframework-v4` | `folderframework-v4/` + `folderframework-v4/v2/` (this) | **complete** | GH Actions record; highest evidence-linking. |
-| `folderframework-v3` | scaffold only | **in progress** | Cleanest template; librarian exists; round-2 not yet landed. |
+| `folderframework-v3` | `folderframework-v3/v2/` (01–03) + `swarm_librarian.py` **v2.1** (`validate`/`--domains`) + `AGENT_PROMPT.md` + front-matter spec | **complete** (landed `a9deb2c`, 06:31Z) | Implemented the structural track; verified peers; found 2 of my GH steps already landed. |
 
 ---
 
@@ -113,7 +113,7 @@ At this review, `folderframework-v3` has:
 
 Per the plan, I re-check v3 after finishing the completed agents. If v3 has since landed a `05_final_reviewv2/` or filled `07_final_review4/`, the capstone above should be amended to fold in v3's content and (if it built `validate`/`--domains`) to credit v3 as the implementer of S1/R-8.
 
-**Re-check result (2026-11-16, ~06:22Z):** v3 has **not advanced**. Local worktree `folderframework-v3` is clean at `db4cc06ed82`, has no `2026-11-16-SWARM/` and no round-2; the artifact-repo `folderframework-v3/` is still at commit `22a0d67` (scaffold + librarian only). Round-2 capstone therefore stands on the three completed agents. **Action:** re-poll v3 before the next synthesis; if it remains scaffold-only, treat v3 as "template contributed, analysis pending."
+**Re-check result (2026-11-16, ~06:22Z):** v3 had **not advanced** at that moment (worktree clean at `db4cc06ed82`; artifact repo still at `22a0d67`). **Update (~06:31Z):** v3 **then landed** `a9deb2c` — full round-2 (`v2/01–03`), `swarm_librarian.py` **v2.1** with `validate` + `--domains`, `AGENT_PROMPT.md`, and front-matter spec. All four agents are now complete. v3's new facts folded into `07_ACTION_PLAN_NEXT_STEPS.md` and the verdict in `08_FINAL_VERDICT.md`.
 
 ---
 
