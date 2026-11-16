@@ -22,6 +22,7 @@ decisions required, open questions, and further research.
 | `06_FINAL_FINDINGS_ROUND2.md` | **Round-2 capstone**: per-agent status, convergence scorecard, merged decisions (B1–B4/S1–S4), v3 re-check |
 | `07_ACTION_PLAN_NEXT_STEPS.md` | Sequenced next-steps plan (phases 0–4, owners, risk, done-when) |
 | `08_FINAL_VERDICT.md` | **Final verdict**: IMPLEMENT (🟢 I1–I12) / PAUSE (🟡 P1–P7) / REJECT (🔴 R1–R9) / OBSOLETE (⚪ O1–O2) |
+| `10_ERRATA_AND_HANDOFF.md` | Errata (E1–E10) + reproducible commands + hand-off; re-derived at origin/main `72bcaaf` |
 | `09_COMMUNICATION_FRAMEWORKS.md` | Research: Antigravity `/swarm` (verified) + 6 blackboard repos evaluated; recommendation (iac + verifier/monitor) |
 
 ## TL;DR
