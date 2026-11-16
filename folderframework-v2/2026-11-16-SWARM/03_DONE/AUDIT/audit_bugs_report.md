@@ -1,5 +1,10 @@
 # Audit Bug Findings and Next Steps (v2)
 
+> **Errata (2026-11-16):** item 3 below cites `enhanced_audit_dashboard.py:103` as the None-unsafe site.
+> That line already coalesces explicit `None` (2026-06-04 comment). The current None-unsafe site is
+> **`enhanced_audit_dashboard.py:26`** (`p.get('pnl_pct', 0)`); the worse adjacent display lie is the
+> hardcoded `win_rate: 55.0` / `sharpe: 0.3` at **lines 106–109**. See `06_final_review3/FINAL_VERDICT.md`.
+
 ## Bug Locations
 1. **`dashboard/generate_dashboard.py`, lines 15 & 30**
    - **Bug:** Misclassifies zero unrealized P/L as negative.

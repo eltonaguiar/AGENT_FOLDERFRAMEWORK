@@ -91,3 +91,17 @@
 ## 7. Final recommendation
 
 Adopt the 7 structural fixes above, declare `folderframework-v3` + its librarian the canonical template, and require the agent prompt contract + front-matter for every future swarm. The content quality (especially v4 GHACTIONS) is already high; the remaining work is almost entirely about making the *structure* enforceable and generic. Once those two pieces are in place, later agents will stop inventing their own layouts and the swarm will scale cleanly from 4 agents to 20.
+
+---
+
+## 8. Post-round-2 update — all peers complete
+
+`folderframework-v3` has since landed librarian v2.1 (`--domains`, `validate`, multi-source `collect`,
+evidence dirs) plus its round-2 canon/alignment pass. All four drops are now complete and converged.
+
+**The consolidated verdict, implementation order, pause list, and blocking decisions are in
+`06_final_review3/FINAL_VERDICT.md`.** It supersedes this review's §3–§7 as the single recommended action plan.
+
+Errata carried into that verdict: my `03_DONE/AUDIT/audit_bugs_report.md` item 3 cited a stale None-site;
+the live bug is `enhanced_audit_dashboard.py:26` and the adjacent hardcoded `win_rate/sharpe` at 106–109.
+The report now carries the errata note.
