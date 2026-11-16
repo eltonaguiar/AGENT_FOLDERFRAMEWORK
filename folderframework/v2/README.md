@@ -22,3 +22,6 @@ This folder does not edit those trees. Layout additions below are proposals, not
 | `LAYOUT_CONTRACT.md` | Canonical tree, naming, evidence slot, validate spec |
 | `AGENT_PROMPT.md` | Placement contract to paste onto future agents |
 | `PHASE_GATES.md` | Who closes each phase, stall rule, conflict rule |
+| `FINAL_FINDINGS.md` | Interim close, before v3's `a9deb2c` drop |
+| `ACTION_PLAN.md` | Step detail behind the verdict |
+| `FINAL_VERDICT.md` | Implement versus pause. This is the close. |
