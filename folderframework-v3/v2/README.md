@@ -25,6 +25,7 @@ Second-pass deliverable for worktree `folderframework-v3`, written after all fou
 | `05_OPEN_QUESTIONS.md` | Ambiguities that block execution if left open |
 | `06_FURTHER_RESEARCH.md` | Research / discussion items, ranked |
 | `08_NEXT_ACTIONS.md` | **Final verdict** after all peers completed: what to implement now, what to pause, what to reject, and the human blockers |
+| `09_AGENT_COMMUNICATION_RESEARCH.md` | Research into shared-board / blackboard agent-coordination tools (Antigravity `/swarm` pattern, `iac`, `agent-message-board`, `bmas`, `ivy-blackboard`), with a hands-on `iac` smoke test |
 
 ## Verification method (what distinguishes this pass)
 
