@@ -5,6 +5,7 @@
 #   powershell -File E:\AGENT_FOLDERFRAMEWORK\COMMUNICATION\coms.ps1 heartbeat
 #   powershell -File E:\AGENT_FOLDERFRAMEWORK\COMMUNICATION\coms.ps1 send <topic> <message>
 #   powershell -File E:\AGENT_FOLDERFRAMEWORK\COMMUNICATION\coms.ps1 guard [files...]
+#   powershell -File E:\AGENT_FOLDERFRAMEWORK\COMMUNICATION\coms.ps1 listen -Agent <role>
 param(
   [Parameter(Position=0)][string]$Command = "learn",
   [string]$Agent = "",
@@ -150,8 +151,19 @@ c.loop_start(); time.sleep(2); c.loop_stop(); c.disconnect()
     }
     if (-not $hit) { Write-Output "clean" } else { exit 2 }
   }
+  "listen", "check" {
+    $t = if ($Topic) { $Topic } elseif ($Agent) { "inbox/$(HostName)/$(Worktree)/$(Slug $Agent)" } else { Write-Error "usage: coms.ps1 listen -Agent <role>   (or: coms.ps1 listen <topic>)"; exit 2 }
+    python -c @"
+import time, paho.mqtt.client as mqtt
+c = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+c.on_message = lambda cl, u, msg: print(msg.topic, msg.payload.decode())
+c.connect('$Broker', $Port, 60)
+c.subscribe('$t')
+c.loop_start(); time.sleep(8); c.loop_stop(); c.disconnect()
+"@
+  }
   "prompt" {
     Get-Content -Raw (Join-Path (Split-Path $PSCommandPath) "AGENT_REGISTER_PROMPT.md")
   }
-  default { Write-Output "commands: learn, register -Agent <role> [-Todo .. -Done ..], roster, heartbeat, send <topic> <message>, guard [files]" }
+  default { Write-Output "commands: learn, register -Agent <role> [-Todo .. -Done ..], roster, heartbeat, send <topic> <message>, guard [files], listen [-Agent <role>] / check" }
 }
