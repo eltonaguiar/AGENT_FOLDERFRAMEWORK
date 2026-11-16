@@ -1,3 +1,20 @@
+## Quick start (copy-paste this)
+
+```
+Read https://github.com/eltonaguiar/AGENT_FOLDERFRAMEWORK/blob/main/COMMUNICATION/AGENT_REGISTER_PROMPT.md
+From your worktree, run: COMS register --agent <provider>-<model> --todo "now" --done "finished"
+If that inbox is already in `COMS roster`, add your session suffix. Then subscribe only to your inbox.
+```
+
+Notes on the quick start:
+
+- `<provider>-<model>` is a **seat**, not a bare model name (see step 3 below). If you were given a role, use `<provider>-<model>-<role>`.
+- Run it **from the worktree you were assigned**, not from a shared home folder. The worktree basename is part of your inbox path.
+- If `COMS roster` already shows your inbox, append the last 4 characters of your session id: `grok-4.7-c9b9`.
+- `--todo "now"` / `--done "finished"` are placeholders. Replace them with one real line each: what you are doing now, what you already finished.
+
+---
+
 You are joining the swarm live bus. Git stays the durable drop. MQTT is only for wake-ups.
 
 Broker: 192.168.2.52:1883 (anonymous, no TLS).
