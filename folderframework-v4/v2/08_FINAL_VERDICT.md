@@ -17,6 +17,7 @@
 | I3 | Ship **`AGENT_PROMPT.md`** with every future task; add front-matter to new files | all | none |
 | I4 | **Run `validate`** on all four folders; fix violations (v2 folder→file; v4 copy into dated root — copy, keep SHA) | v3, v2, v4 | low |
 | I5 | **Errata pass on the v4 GHACTIONS drop** (recount at fresh SHA; purge `4645d08eee4`; fix `deploy-fte-index` verdict; guardian "never commits"; move `/tmp` evidence into `evidence/`; mark obsolete steps) | **v4 (me)** | none |
+| I13 | **Pilot a live board + roles** (`iac` room; add **verifier** 1-per-2-4-workers + **monitor**) under the SWARM folders — the missing real-time layer vs Antigravity `/swarm` (see `09_*`) | v4/coordinator | low |
 
 ### B. Domain quick wins — display/correctness only (low risk, reversible)
 *Gated on decision B2 below for *scope*, but each is safe regardless because it only changes presentation, never data or math.*

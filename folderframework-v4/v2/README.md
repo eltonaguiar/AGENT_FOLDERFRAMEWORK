@@ -22,6 +22,7 @@ decisions required, open questions, and further research.
 | `06_FINAL_FINDINGS_ROUND2.md` | **Round-2 capstone**: per-agent status, convergence scorecard, merged decisions (B1–B4/S1–S4), v3 re-check |
 | `07_ACTION_PLAN_NEXT_STEPS.md` | Sequenced next-steps plan (phases 0–4, owners, risk, done-when) |
 | `08_FINAL_VERDICT.md` | **Final verdict**: IMPLEMENT (🟢 I1–I12) / PAUSE (🟡 P1–P7) / REJECT (🔴 R1–R9) / OBSOLETE (⚪ O1–O2) |
+| `09_COMMUNICATION_FRAMEWORKS.md` | Research: Antigravity `/swarm` (verified) + 6 blackboard repos evaluated; recommendation (iac + verifier/monitor) |
 
 ## TL;DR
 1. **Not competing drafts — complementary slices.** `folderframework`/`v2` = AUDIT+DB, `v3` = tooling, `v4` (me) = GHACTIONS. The `v2/v3/v4` naming reads like versions but the content is domains. Do not vote; merge.
@@ -35,3 +36,5 @@ decisions required, open questions, and further research.
 7. **Round 2 is complete for all 4 agents (see `06_*`).** `folderframework`, `-v2`, `-v3`, `-v4` all landed; v3 shipped `swarm_librarian.py` v2.1 (`validate`/`--domains`). v3 also found 2 of my GH steps already landed on main and 16 errata in my v4 drop.
 
 8. **Final verdict (see `08_*`).** IMPLEMENT the framework canon + display-only domain wins; PAUSE data/rows/cron/prediction mutations; REJECT fabricated success, real-money sizing, and disproven claims; RETIRE my obsolete steps (O1–O2). **Top blocker = B2 (which dashboard is live).**
+
+9. **Communication layer (see `09_*`).** Antigravity `/swarm` = isolation + artifacts + **real-time blackboard + verifier/monitor roles**. The folderframework has isolation + artifacts but no live channel. Recommendation: pilot **`iac`** (zero-token `recv`, `@`-addressing, `?` work-queue) under the existing SWARM folders, and add a **verifier** (1 per 2–4 workers) + **monitor**. Verified: all 6 candidate repos exist; `iac` is the closest match.
