@@ -1,3 +1,26 @@
+# AGENT_FOLDERFRAMEWORK
+
+**Swarm / Isolated-Worktree Framework** for multi-agent collaboration on the findtorontoevents.ca codebase (and reusable for other projects).
+
+## Table of Contents
+
+- [Original Prompt – Swarm Protocol](#original-prompt)
+- [Core Principles](#1-core-principles)
+- [Directory Layout](#2-directory-layout-local--optional-commit)
+- [Agent Roles](#3-agent-roles-recommended-roster)
+- [Phased Collaborative Protocol](#4-phased-collaborative-protocol)
+- [Document Templates](#5-document-templates-key-sections)
+- [Best-Practice Safeguards](#6-best-practice-safeguards)
+- [Example Application](#7-example-application-to-your-current-issues)
+- [Lightweight Tooling](#8-lightweight-tooling-suggestions)
+- [MULTI-PC AI AGENT COMMUNICATION](#multi-pc-ai-agent-communication)
+  - [Windows + Linux Setup](#windows--linux-setup)
+  - [Approaches Evaluated](#approaches-evaluated)
+  - [Chosen Approach](#chosen-approach)
+- [Review of the Framework](#review-of-eltonaguiaragent_folderframework)
+
+---
+
 # Original Prompt
 **Swarm / Isolated-Worktree Framework for the Audit System**  
 (Designed for the findtorontoevents.ca / `eltonaguiar/findtorontoevents_antigravity.ca` codebase, with explicit handling of DB hygiene, GitHub Actions, audit dashboard, prediction markets, and research worktrees.)
@@ -176,7 +199,48 @@ A final small group (or the synthesizer + evidence agent) does four things:
 
 This framework is deliberately heavy on artifacts and light on real-time chat. It scales from 4 agents to 20, survives crashes, produces a single auditable plan, and maps cleanly onto your existing WIRED_IN / GHACTIONS / audit_dashboard layout. You can start with a single domain (e.g. AUDIT page fixes) as a pilot and expand once the process feels smooth.
 
+---
 
+## MULTI-PC AI AGENT COMMUNICATION
+
+Agents run across multiple physical machines (Windows desktop + Linux ASUS GX10 and others). Durable artifacts stay in Git; live coordination (post / @mention / wake) uses a separate messaging bus.
+
+### Windows + Linux Setup
+
+| Machine | IP | Primary project path | Role |
+|---------|----|----------------------|------|
+| Windows | 192.168.2.32 | `E:\findtorontoevents_antigravity.ca` | Heavy agents, local models, worktrees |
+| Linux   | 192.168.2.52 | `/home/eaguiar2015/...` (discover exact path) | Broker host + librarian / long-running agents |
+
+Both machines share the same Git remotes. Agents on either machine can push/pull the dated SWARM folders and the `COMMUNICATION/` directory.
+
+### Approaches Evaluated
+
+| Approach | Type | Persistence | Wake / Idle | Multi-PC | Notes |
+|----------|------|-------------|-------------|----------|-------|
+| Pure Git file mentions | File | Yes | Poll or watcher | Good | Simple fallback; higher latency |
+| Syncthing / shared folder | File sync | Yes | Near-instant files | Excellent | Good for files; still need messaging layer |
+| Tailscale + SMB/NFS | Shared volume | Yes | Sub-second | Excellent | Lowest file latency; extra setup |
+| Redis Pub/Sub | Bus | No | Yes (if subscribed) | Good | Too lossy for offline agents |
+| Redis Streams | Bus | Yes | Yes (XREAD BLOCK) | Good | Excellent if Redis already running |
+| **MQTT (Mosquitto) + swarmbus** | Bus | Yes (QoS + retained) | Excellent | Excellent | Chosen — lightweight, purpose-built for mentions |
+
+### Chosen Approach
+
+**Git for durable files + MQTT (Mosquitto) + swarmbus for live messaging.**
+
+- Durable work (plans, evidence, reviews, handoffs) is committed and pushed to the Git repo.
+- Live @mentions, status, and wake signals go over MQTT topics (`mentions/<agent>`, `mentions/all`, `board/posts`).
+- Broker runs on the Linux machine (192.168.2.52:1883).
+- Agents sleep until a message arrives on their topic (zero-token idle).
+
+Full details, comparison tables, setup steps, and next actions are documented in:
+
+**[`COMMUNICATION/FINDINGS.md`](COMMUNICATION/FINDINGS.md)**
+
+Also see `COMMUNICATION/AGENT_PROMPT.md` and `COMMUNICATION/watch_mentions.py` for the file-based fallback and agent instructions.
+
+---
 
 ========
 # **Review of `eltonaguiar/AGENT_FOLDERFRAMEWORK`**
