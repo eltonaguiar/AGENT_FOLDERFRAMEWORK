@@ -28,6 +28,7 @@ Implement the low-risk, display-only fixes and the framework canon now. Pause ev
 | I6 | **Remove or label hardcoded WR/Sharpe** | `enhanced_audit_dashboard.py:106-109` | dev | Hardcoded `win_rate: 55.0` / `sharpe: 0.3` is a display lie. Do **not** "re-fix" L103 (already coalesced in 2026-06-04). *Found by v1/v4.* |
 | I7 | **Add GH Actions push-safety rule to `AGENTS.md`** | source-repo `AGENTS.md` | dev | Never stage `.github/workflows/` wholesale from a worktree that may be behind `origin/main`. v4's stale-fork trap (88k ahead / 15 behind) makes this the highest-leverage guardrail. |
 | I8 | **Land `/audit` deploy concurrency group** | already done in `20f6e1cdad1`; convert to regression watch only | dev | v4's Step 9 and v3's verification confirm it is live on `deploy-competition-to-site.yml` and `deploy-fte-index.yml`. No code change needed; add a watch in `TESTING_PLAN`. |
+| I9 | **Pilot a live agent-communication board (`iac`) + verifier/monitor roles** | per-swarm `iac` room under `2026-11-16-SWARM/comms/`; add verifier (1 per 2–4 workers) and optional monitor | dev/coordinator | Both v3 (`09_AGENT_COMMUNICATION_RESEARCH.md`) and v4 (`09_COMMUNICATION_FRAMEWORKS.md`) independently researched Antigravity `/swarm` and converged on `iac` as the closest match. Smoke test verified build + p2p + broadcast + `?` work-queue. |
 
 ### Phase-A PR grouping
 - **Single PR** for I2–I6 (display-only; no row deletions, no math changes).
@@ -102,6 +103,7 @@ Implement the low-risk, display-only fixes and the framework canon now. Pause ev
 - [ ] Canon ratified (human yes).
 - [ ] Phase-A PR (I2–I6) drafted and ready for human review.
 - [ ] Push-safety PR (I7) drafted.
+- [ ] I9 `iac` pilot run and evidence committed with front-matter.
 - [ ] F1 runtime-state pass completed and committed with front-matter.
 - [ ] B2 answered; if `dashboard/index.html` is not authoritative, deprioritize or close v2's dashboard bugs.
 - [ ] A single merged final plan (or master index) exists in one `07_final_review4/` with domain sections.

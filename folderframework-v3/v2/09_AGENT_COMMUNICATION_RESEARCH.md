@@ -181,11 +181,24 @@ The user’s main session (or a dedicated coordinator agent) becomes the coordin
 
 ---
 
-## 6. Proposed next step
+## 6. Cross-peer convergence
+
+`folderframework-v4` independently researched the same six tools and reached the **same primary recommendation**: `iac` as the live board, `agent-message-board` as the human-UI alternative, with `bmas`/`ivy-blackboard` as specialized/secondary options. v4 adds a useful role mapping from Antigravity `/swarm`:
+
+| Role | Antigravity | `iac` mapping |
+|------|-------------|---------------|
+| Coordinator | user’s main session | same; posts tasks to the room |
+| Worker | `@parser`, `@fix-1`, etc. | named `iac` seat per worktree |
+| Verifier | 1 per 2–4 workers | a worktree that reads diffs/tests and posts results back |
+| Monitor | optional stall detector | posts if all workers go quiet before done |
+
+Both documents agree: files remain canonical; the board is transient runtime coordination.
+
+## 7. Proposed next step
 
 1. **Pilot `iac` on one low-risk swarm mission** (e.g., the next evidence-agent pass from `08_NEXT_ACTIONS.md`).
 2. **Create a Kilo skill wrapper** under `folderframework-v3/tools/swarm/` that installs `iac` and provides `swarm_iac.sh` helper commands (`send`, `recv`, `who`).
-3. **Run a 2-worker + 1 coordinator smoke test** in `/tmp` and capture the transcript as evidence in `03_DONE/META/`.
+3. **Run a 2-worker + 1 coordinator + 1 verifier smoke test** in `/tmp` and capture the transcript as evidence in `03_DONE/META/`.
 4. If the smoke test succeeds, add an optional `iac` room to the `swarm_librarian.py scaffold output and document it in `AGENT_PROMPT.md`.
 
 ---
