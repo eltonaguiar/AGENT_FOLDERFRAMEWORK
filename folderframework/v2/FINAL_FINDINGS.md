@@ -44,4 +44,4 @@ Reviewed `eltonaguiar/AGENT_FOLDERFRAMEWORK` at `55f88cf` and the three finished
 
 ## v3 recheck
 
-Checked after the completed-peer read. `folderframework-v3` worktree is clean at `db4cc06ed82`. `AGENT_FOLDERFRAMEWORK` has no commit from v3 after `22a0d67`. Their `tools/swarm/` in the source worktree is the existing repo directory, not a new librarian drop. Recheck this worktree before treating the scaffold as finished.
+Superseded. v3 landed `a9deb2c` after the interim note above. Librarian now has `validate` and `--domains`. Next steps are in `ACTION_PLAN.md`. The ghost-count lie they named is real at `audit_dashboard/dashboard_enhancements.js:829-831`, and it renders only when the tier-1 banner is red.

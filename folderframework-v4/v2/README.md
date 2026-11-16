@@ -20,6 +20,8 @@ decisions required, open questions, and further research.
 | `04_PEER_RECONCILIATION.md` | Reconciliation with `folderframework/v2/`'s review of my v4 (converged + added facts) |
 | `05_FRAMEWORK_STRUCTURE_REVIEW.md` | External meta-review incorporated: structural/generic/enforcement gaps + fixes |
 | `06_FINAL_FINDINGS_ROUND2.md` | **Round-2 capstone**: per-agent status, convergence scorecard, merged decisions (B1–B4/S1–S4), v3 re-check |
+| `07_ACTION_PLAN_NEXT_STEPS.md` | Sequenced next-steps plan (phases 0–4, owners, risk, done-when) |
+| `08_FINAL_VERDICT.md` | **Final verdict**: IMPLEMENT (🟢 I1–I12) / PAUSE (🟡 P1–P7) / REJECT (🔴 R1–R9) / OBSOLETE (⚪ O1–O2) |
 
 ## TL;DR
 1. **Not competing drafts — complementary slices.** `folderframework`/`v2` = AUDIT+DB, `v3` = tooling, `v4` (me) = GHACTIONS. The `v2/v3/v4` naming reads like versions but the content is domains. Do not vote; merge.
@@ -30,4 +32,6 @@ decisions required, open questions, and further research.
 
 6. **Structural consistency is the meta-fix (from the external review).** The four folders use three different layouts (v2 = charter-as-folder, v3 = dated SWARM, v4 = flat). Adopt v3's dated SWARM + `swarm_librarian.py` as canonical, add a `validate` subcommand + `AGENT_PROMPT.md` contract, and migrate v4 (mapping in `05_*`). My v4 is the layout deviant; see D8.
 
-7. **Round 2 is complete for 3 of 4 agents (see `06_*`).** `folderframework`, `-v2`, and `-v4` converged on the same structure + domain conclusions; `folderframework-v3` is still scaffold-only (re-checked, no advance). Top blocker is B2: which dashboard is actually served.
+7. **Round 2 is complete for all 4 agents (see `06_*`).** `folderframework`, `-v2`, `-v3`, `-v4` all landed; v3 shipped `swarm_librarian.py` v2.1 (`validate`/`--domains`). v3 also found 2 of my GH steps already landed on main and 16 errata in my v4 drop.
+
+8. **Final verdict (see `08_*`).** IMPLEMENT the framework canon + display-only domain wins; PAUSE data/rows/cron/prediction mutations; REJECT fabricated success, real-money sizing, and disproven claims; RETIRE my obsolete steps (O1–O2). **Top blocker = B2 (which dashboard is live).**

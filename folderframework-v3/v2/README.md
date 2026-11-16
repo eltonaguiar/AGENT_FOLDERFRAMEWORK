@@ -24,6 +24,7 @@ Second-pass deliverable for worktree `folderframework-v3`, written after all fou
 | `04_DECISIONS_REQUIRED.md` | Decisions that need the human — options + my recommendation each |
 | `05_OPEN_QUESTIONS.md` | Ambiguities that block execution if left open |
 | `06_FURTHER_RESEARCH.md` | Research / discussion items, ranked |
+| `08_NEXT_ACTIONS.md` | **Final verdict** after all peers completed: what to implement now, what to pause, what to reject, and the human blockers |
 
 ## Verification method (what distinguishes this pass)
 
