@@ -13,7 +13,7 @@
 
 **CRITICAL PUSH-SAFETY TRAP:** The local working tree (`89bbb6a2212`) is a **stale fork** of `.github/workflows/` relative to `origin/main`. A naive `git add .github/workflows/ && git commit && git push` would **silently revert a live production fix** and resurrect 9 deleted files.
 
-**Delta (local HEAD vs origin/main @ 5e86dd18e15, 13 commits behind):**
+**Delta (local HEAD vs origin/main @ 5e86dd18e15, 2356 commits behind):**
 
 | Class | File | Effect of naive commit |
 |-------|------|------------------------|
@@ -26,17 +26,17 @@
 | | `ml-battleground-{d,e,ensemble,monitor}.yml.retired` (4 files) | same |
 | **ALREADY REFLECTS MAIN / no-op** | `ml-gatekeeper-ab-bootstrap.yml.disabled`, `mysql-q001-sync.yml.disabled` | already renamed on main by `3d1aa94ba5e` |
 
-**Consequence:** 12 files would change state on a naive push. **Never stage the whole `.github/workflows/` directory.** Stage only `GHACTIONS_2026-11-16/**` docs path, file by file.
+**Consequence:** 3 files would change state on a naive push. **Never stage the whole `.github/workflows/` directory.** Stage only `GHACTIONS_2026-11-16/**` docs path, file by file.
 
 **Revert runbook items (for @fix-manager `revert_runbook.md`):**
-- `git checkout 4645d08eee4 -- .github/workflows/dynamic-alpha-engine.yml` (restores 90 min timeout)
+- `git checkout 2a8421d197e -- .github/workflows/dynamic-alpha-engine.yml` (restores 90 min timeout)
 - `git revert <our-sha>` for docs-only commits (safe, only touches `GHACTIONS_*` paths)
 - `git checkout c2393512637^ -- .github/workflows/<name>` to restore any of the 9 deleted files if a restore is ever wanted — but note these were **deleted deliberately**, so restoring is a rollback of a cleanup, not a bugfix
-- Verify checklist: (a) `git diff origin/main -- .github/workflows/ | grep -c '^[+-]'` must be 0; (b) `grep -n timeout-minutes .github/workflows/dynamic-alpha-engine.yml` must show `90`; (c) `git ls-tree -r --name-only HEAD -- .github/workflows | wc -l` must equal main's count (373 tree entries)
+- Verify checklist: (a) `git diff origin/main -- .github/workflows/ | grep -c '^[+-]'` must be 0; (b) `grep -n timeout-minutes .github/workflows/dynamic-alpha-engine.yml` must show `90`; (c) `git ls-tree -r --name-only HEAD -- .github/workflows | wc -l` must equal main's count (375 tree entries)
 
 ---
 
-## Push-Trigger Inventory (356 workflow files @ `ae3f4dc`)
+## Push-Trigger Inventory (375 workflow files @ `ae3f4dc`)
 
 | Trigger class | Count | Notes |
 |---------------|-------|-------|
@@ -73,7 +73,7 @@
 
 ### 3. Stale-fork amplification (this tree)
 
-**Pattern:** The local tree is 13 commits behind `origin/main`. Any workflow edit we stage from this tree risks reverting live fixes (e.g., the 90→60 timeout regression).
+**Pattern:** The local tree is 2356 commits behind `origin/main`. Any workflow edit we stage from this tree risks reverting live fixes (e.g., the 90→60 timeout regression).
 
 **Mitigation:** Never stage `.github/workflows/` wholesale. Build patches against `origin/main`'s blob, not the local file.
 
@@ -127,11 +127,13 @@ Use `cancel-in-progress: false` deliberately: cancelling an `lftp` mid-transfer 
 2. **Never stage `.github/workflows/` wholesale.** Stage only `GHACTIONS_2026-11-16/**` docs.
 3. **If editing a workflow:** read `origin/main`'s blob, apply change, verify `git diff origin/main -- <path>` shows only the intended hunk.
 4. **For `dynamic-alpha-engine.yml` specifically:** confirm `timeout-minutes: 90` (line 115) before staging.
-5. **Verify no resurrection:** `git ls-tree -r --name-only HEAD -- .github/workflows | wc -l` must equal main's count (373 tree entries); any discrepancy indicates a deleted file would be resurrected.
+5. **Verify no resurrection:** `git ls-tree -r --name-only HEAD -- .github/workflows | wc -l` must equal main's count (375 tree entries); any discrepancy indicates a deleted file would be resurrected.
 
 ---
 
 **References (local git only):**
 - `git show ae3f4dc4dc1c2a1e63abd5285e8c037e6f136695:.github/workflows/dynamic-alpha-engine.yml` for the 90-min timeout + concurrency guard.
-- `git diff --name-status HEAD origin/main -- .github/workflows/` for the 12-file delta.
+- `git diff --name-status HEAD origin/main -- .github/workflows/` for the 3-file delta.
 - `/tmp/qa3/blobs/*` for push-trigger counts (40 push, 26 schedule+push, 7 workflow_run).
+
+> **ERRATA 2026-11-16 (folderframework-v4):** counts/SHAs re-derived at origin/main `72bcaaf629a`. See `../../10_ERRATA_AND_HANDOFF.md`. `4645d08eee4` purged (use `2a8421d197e`/`origin/main`).

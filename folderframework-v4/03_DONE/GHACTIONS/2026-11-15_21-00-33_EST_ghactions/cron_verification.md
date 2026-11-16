@@ -12,7 +12,7 @@ mkdir -p /tmp/triage_wf
 cd /home/eaguiar2015/findtorontoevents_antigravity.ca
 git ls-tree -r --name-only origin/main -- .github/workflows \
   | grep -E '\.ya?ml$' | grep -v '\.disabled$' > /tmp/triage_wf/list.txt
-# 358 workflow files
+# 375 workflow files
 : > /tmp/triage_wf/crons.tsv
 while read p; do
   git show origin/main:"$p" 2>/dev/null \
@@ -23,7 +23,7 @@ while read p; do
       done
 done < /tmp/triage_wf/list.txt
 ```
-**Result:** 358 workflow files, **362 cron lines**, 310 files with ≥1 cron, 48 with none.
+**Result:** 375 workflow files, **362 cron lines**, 310 files with ≥1 cron, 48 with none.
 
 ## Top Cron Tiers (tie resolved)
 | cron | count | example workflows |

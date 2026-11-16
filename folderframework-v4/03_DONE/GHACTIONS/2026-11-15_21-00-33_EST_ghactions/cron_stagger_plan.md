@@ -11,7 +11,7 @@
 
 ## Executive Summary
 
-**Inventory (verified @ `ae3f4dc`):** 356 workflow files, 360 cron lines across 309 files. Minute-0 concentration is **189/360 (52.5 %)**. The worst pile-ups are the even-hour tiers `0 */2 * * *` (15 files), `0 */4 * * *` (13), `0 */6 * * *` (13) that all collide at hours 0/4/8/12/16/20, plus the every-half-hour `*/30 * * * *` (12 files) and hourly `0 * * * *` (12 files).
+**Inventory (verified @ `ae3f4dc`):** 375 workflow files, 360 cron lines across 309 files. Minute-0 concentration is **189/360 (52.5 %)**. The worst pile-ups are the even-hour tiers `0 */2 * * *` (15 files), `0 */4 * * *` (13), `0 */6 * * *` (13) that all collide at hours 0/4/8/12/16/20, plus the every-half-hour `*/30 * * * *` (12 files) and hourly `0 * * * *` (12 files).
 
 **Stagger policy (deterministic, reviewable):** `zlib.crc32(filename) % 60`, alphabetical `+1 mod 60` tie-break **within each cron group** (not globally). Two displacements required: `signal_tracking.yml` 34→**35** (`0 */2`), `sign-coherence-gate.yml` 32→**33** (`0 4 * * *`). Raw collision set before tie-break: 55 distinct offsets used, max pile 7 at offset 41.
 

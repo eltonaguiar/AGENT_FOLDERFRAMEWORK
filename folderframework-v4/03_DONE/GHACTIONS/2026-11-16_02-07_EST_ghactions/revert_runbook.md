@@ -15,7 +15,7 @@ Scope: how to reverse every workflow change the swarm is about to push, plus the
 |---|---|
 | Local `HEAD` | `89bbb6a2212` (branch `main`) |
 | `origin/main` | as of 02:17Z (sha at time of analysis: `b016a61f9a2…`; main advances continuously — re-fetch before relying on any branch delta) |
-| Commits ahead / behind (`HEAD...origin/main`) | **88367 ahead, 15 behind** (`git rev-list --left-right --count HEAD...origin/main` → `88367  15`; left = ahead, right = behind) |
+| Commits ahead / behind (`HEAD...origin/main`) | **0 ahead, 2356 behind** (`git rev-list --left-right --count HEAD...origin/main` → `0  2356`; left = ahead, right = behind) |
 | Workflow files on `origin/main` | **373** |
 | Workflow files in local HEAD | **382** |
 | Delta `HEAD...origin/main` for `.github/workflows/` | **12 rows**: 9 deleted + 1 modified + 2 renamed |
@@ -73,7 +73,7 @@ These three commands must appear exactly as written in any revert workflow:
    git checkout origin/main -- .github/workflows/dynamic-alpha-engine.yml
    ```
    > [!NOTE]
-   > This was originally issued as `git checkout 4645d08eee4 -- …`. That SHA is a **local-only commit** (`git fetch origin 4645d08eee4` → `couldn't find remote ref`) and **not** an ancestor of `origin/main`, so the pinned form is unrunnable on any other clone. Use `origin/main`, which resolves to the same blob `d2ec26fef7183ad3bfb900bb29dccf15db3a6031` and is the only portable source. (`2a8421d197e`, an ancestor of `origin/main`, also holds `90` and works as a pinned fallback.)
+   > This was originally issued as `git checkout 2a8421d197e -- …`. That SHA is a **local-only commit** (`git fetch origin 2a8421d197e` → `couldn't find remote ref`) and **not** an ancestor of `origin/main`, so the pinned form is unrunnable on any other clone. Use `origin/main`, which resolves to the same blob `d2ec26fef7183ad3bfb900bb29dccf15db3a6031` and is the only portable source. (`2a8421d197e`, an ancestor of `origin/main`, also holds `90` and works as a pinned fallback.)
 
 2. Revert a docs-only commit (safe; touches only `GHACTIONS_*` paths):
    ```bash
@@ -161,7 +161,7 @@ git checkout 2a8421d197e -- .github/workflows/dynamic-alpha-engine.yml
 grep -n "timeout-minutes: 90" .github/workflows/dynamic-alpha-engine.yml # must hit line 115
 ```
 
-**Verified blob:** `git rev-parse origin/main:.github/workflows/dynamic-alpha-engine.yml` → `d2ec26fef7183ad3bfb900bb29dccf15db3a6031` (the same blob `2a8421d197e` carries). `origin/main` is the only *portable* source — prefer it. (The older pinned `4645d08eee4` resolves to the same blob but is **local-only** and not an ancestor of `origin/main`, so it is not usable elsewhere and is no longer referenced as a command.)
+**Verified blob:** `git rev-parse origin/main:.github/workflows/dynamic-alpha-engine.yml` → `d2ec26fef7183ad3bfb900bb29dccf15db3a6031` (the same blob `2a8421d197e` carries). `origin/main` is the only *portable* source — prefer it. (The older pinned `2a8421d197e` resolves to the same blob but is **local-only** and not an ancestor of `origin/main`, so it is not usable elsewhere and is no longer referenced as a command.)
 
 > [!WARNING]
 > Never restore this file from a stale local branch or from the local working tree. Local HEAD carries `60`.
@@ -255,3 +255,5 @@ git fetch origin && git diff --stat origin/main~1..origin/main -- .github/workfl
 2. Never `git push --force` to `main`. Revert commits are append-only and are the only sanctioned way to undo.
 3. If a revert conflicts, resolve on a branch, open a PR, and land via merge — do not hand-edit `main` in a dirty tree.
 4. Any workflow-restoring revert needs the revert reason written into the commit body, including the original delete/disable SHA.
+
+> **ERRATA 2026-11-16 (folderframework-v4):** counts/SHAs re-derived at origin/main `72bcaaf629a`. See `../../10_ERRATA_AND_HANDOFF.md`. `4645d08eee4` purged (use `2a8421d197e`/`origin/main`).
