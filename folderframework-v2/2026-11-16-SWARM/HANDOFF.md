@@ -62,7 +62,7 @@ folderframework-v2/2026-11-16-SWARM/
 
 - No production remediation applied; every change requires human approval.
 - Open decisions: B2/D14 dashboard authority; D3 `db_freshness.json` + doc sweep; D4 sports API check/retire; D6 cron pilot scope; Q2 `hub/data/*` liveness.
-- Next librarian pass: fold `VALIDATE_SPEC` V4/V8/V9 into `folderframework-v3/tools/swarm/swarm_librarian.py`.
+- Validator extras V4/V8/V9 are now folded into `folderframework-v3/tools/swarm/swarm_librarian.py` (`--repo-root` enables V4 path resolution); `HANDOFF.md` added to the top-level allowlist.
 - Optional: publish one merged cross-domain package at `AGENT_FOLDERFRAMEWORK/2026-11-16-SWARM-MERGED/07_final_review4/`.
 
 ## 6. COMS
