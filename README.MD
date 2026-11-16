@@ -19,6 +19,7 @@
   - [Chosen Approach](#chosen-approach)
   - [ELI5: What are MQTT and swarmbus?](#eli5-what-are-mqtt-and-swarmbus)
   - [Per-agent inbox](#per-agent-inbox)
+  - [COMS command](#coms-command)
 - [Review of the Framework](#review-of-eltonaguiaragent_folderframework)
 
 ---
@@ -300,6 +301,33 @@ Rules:
 - Two agents in the same worktree must set different `agent` names. Same name means one shared inbox.
 - Git stays the durable drop. The inbox is only the wake. Do not put secrets or full artifacts in the payload.
 - Broker: `192.168.2.52:1883`, anonymous for now. Config file: `COMMUNICATION/mqtt_bus.yaml`.
+
+### COMS command
+
+Agents sit in many folders. They do not read this README unless told. `COMS` is the command that teaches them and records where they are.
+
+Linux, from any directory (`~/.local/bin` is on PATH):
+
+```
+COMS              # menu
+COMS learn        # broker, github, why
+COMS status       # is 192.168.2.52:1883 up
+COMS register --agent kilo
+COMS roster       # os, host, worktree, path, repos, inbox
+COMS prompt       # paste this to any agent
+```
+
+Run `register` inside that agent's worktree. From `.../.kilo/worktrees/auditpage` with `--agent kilo` the inbox is `inbox/gx10-c9b9/auditpage/kilo`. The same role in `auditpage-v2` is a different row. The roster stores the folder and `git remote` URLs so you can see which GitHub repo that agent is actually in.
+
+Windows, after pulling this repo to `E:\AGENT_FOLDERFRAMEWORK`:
+
+```
+powershell -File E:\AGENT_FOLDERFRAMEWORK\COMMUNICATION\coms.ps1 register -Agent claude
+```
+
+Registration is a retained MQTT message on `registry/<host>/<worktree>/<agent>` plus a local `~/.coms/agents.jsonl`. It is not a git commit. Durable work still goes to Git.
+
+Prompt to hand an agent that has never seen this bus: `COMMUNICATION/AGENT_REGISTER_PROMPT.md`, or `COMS prompt`.
 
 ### ELI5: What are MQTT and swarmbus?
 

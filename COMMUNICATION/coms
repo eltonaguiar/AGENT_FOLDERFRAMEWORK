@@ -1,0 +1,296 @@
+#!/usr/bin/env bash
+# COMS / COMS_MENU — swarm inbox menu. Works from any directory.
+#   COMS                  interactive menu
+#   COMS learn            why this bus exists
+#   COMS status           broker reachability
+#   COMS roster           who is registered
+#   COMS register --agent kilo
+#   COMS prompt           text to hand any agent
+#   COMS listen           subscribe to this folder's inbox
+#   COMS send <topic> <message>
+set -uo pipefail
+
+BROKER="${COMS_BROKER:-192.168.2.52}"
+PORT="${COMS_PORT:-1883}"
+REPO_URL="https://github.com/eltonaguiar/AGENT_FOLDERFRAMEWORK"
+LOCAL_REG="${HOME}/.coms/agents.jsonl"
+FRAMEWORK="${COMS_FRAMEWORK:-/home/eaguiar2015/AGENT_FOLDERFRAMEWORK}"
+
+host_name() { hostname -s 2>/dev/null || hostname; }
+
+slug() {
+  printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9_-' '-' | sed 's/^-//;s/-$//'
+}
+
+worktree_name() {
+  local top
+  top="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+  if [[ -n "$top" ]]; then basename "$top"; else basename "$PWD"; fi
+}
+
+repo_urls() {
+  git remote -v 2>/dev/null | awk '{print $2}' | sort -u | paste -sd, -
+}
+
+identity() {
+  local agent="${1:-}"
+  HOST="$(slug "$(host_name)")"
+  WT="$(slug "$(worktree_name)")"
+  AGENT="$(slug "${agent:-${COMS_AGENT:-$(worktree_name)}}")"
+  INBOX="inbox/${HOST}/${WT}/${AGENT}"
+  SBUS="${HOST}__${WT}__${AGENT}"
+  PATH_NOW="$PWD"
+}
+
+cmd_learn() {
+  cat <<EOF
+COMS — live wake bus for agents on any path
+
+Why
+  Git is the filing cabinet (plans, evidence, handoffs).
+  MQTT is the intercom. An agent sleeps until its own inbox gets a message.
+  Do not share one inbox per machine. auditpage and auditpage-v2 are different
+  worktrees. Two agents in the same worktree need different role names.
+
+Broker
+  ${BROKER}:${PORT}  anonymous, no TLS, host gx10-c9b9 (Linux)
+  systemd unit: mosquitto (enabled)
+
+Inbox
+  inbox/<host>/<worktree>/<agent>
+  subtree broadcast: inbox/<host>/<worktree>/all
+  both machines:     mentions/all
+  swarmbus id:       <host>__<worktree>__<agent>
+  this folder now:   inbox/$(slug "$(host_name)")/$(slug "$(worktree_name)")/<agent>
+
+Examples
+  inbox/gx10-c9b9/auditpage/kilo
+  inbox/gx10-c9b9/auditpage-v2/kilo
+  inbox/desktop-081g9oh/auditpage/claude
+
+GitHub
+  ${REPO_URL}
+  protocol: README.MD section "Per-agent inbox"
+  config:   COMMUNICATION/mqtt_bus.yaml
+  Windows clone seen at E:\\AGENT_FOLDERFRAMEWORK
+  Linux copy: ${FRAMEWORK}
+
+Register from the agent's own folder
+  Linux:   COMS register --agent kilo
+  Windows: powershell -File E:\\AGENT_FOLDERFRAMEWORK\\COMMUNICATION\\coms.ps1 register -Agent claude
+
+Roster is MQTT retained messages on registry/# plus ${LOCAL_REG}
+Durable work still goes to Git. Never put secrets on the bus.
+EOF
+}
+
+cmd_status() {
+  echo "broker ${BROKER}:${PORT}"
+  if timeout 3 bash -c "echo >/dev/tcp/${BROKER}/${PORT}" 2>/dev/null; then
+    echo "tcp: open"
+  else
+    echo "tcp: closed"
+  fi
+  if command -v systemctl >/dev/null && [[ "$(host_name)" == "gx10-c9b9" || "${BROKER}" == "127.0.0.1" ]]; then
+    echo "systemd: $(systemctl is-active mosquitto 2>/dev/null || echo unknown) / enabled=$(systemctl is-enabled mosquitto 2>/dev/null || echo unknown)"
+  fi
+  echo "--- retained status ---"
+  timeout 3 mosquitto_sub -h "$BROKER" -p "$PORT" -t 'status/#' -v --retained-only -W 2 2>/dev/null || true
+}
+
+cmd_roster() {
+  mkdir -p "$(dirname "$LOCAL_REG")"
+  local tmp
+  tmp="$(mktemp)"
+  timeout 4 mosquitto_sub -h "$BROKER" -p "$PORT" -t 'registry/#' -v --retained-only -W 2 >"$tmp" 2>/dev/null || true
+  python3 - "$LOCAL_REG" "$tmp" <<'PY'
+import json, sys
+from pathlib import Path
+local, remote = Path(sys.argv[1]), Path(sys.argv[2])
+rows = {}
+def take(obj):
+    key = obj.get("inbox") or obj.get("agent")
+    if not key:
+        return
+    prev = rows.get(key)
+    if not prev or str(obj.get("registered_at","")) >= str(prev.get("registered_at","")):
+        rows[key] = obj
+if local.is_file():
+    for line in local.read_text(encoding="utf-8", errors="replace").splitlines():
+        line=line.strip()
+        if not line:
+            continue
+        try:
+            take(json.loads(line))
+        except json.JSONDecodeError:
+            pass
+if remote.is_file():
+    for line in remote.read_text(encoding="utf-8", errors="replace").splitlines():
+        if " " not in line:
+            continue
+        _topic, payload = line.split(" ", 1)
+        try:
+            take(json.loads(payload))
+        except json.JSONDecodeError:
+            pass
+if not rows:
+    print("no agents registered")
+    sys.exit(0)
+print(f"{'OS':<7} {'HOST':<18} {'WORKTREE':<18} {'AGENT':<12} PATH")
+for obj in sorted(rows.values(), key=lambda o: (o.get("os",""), o.get("host",""), o.get("worktree",""), o.get("agent",""))):
+    print(f"{obj.get('os','?'):<7} {obj.get('host','?'):<18} {obj.get('worktree','?'):<18} {obj.get('agent','?'):<12} {obj.get('path','')}")
+    repos = obj.get("repos") or []
+    if repos:
+        print(f"{'':<7} repos: {', '.join(repos)}")
+    print(f"{'':<7} inbox: {obj.get('inbox','')}")
+PY
+  rm -f "$tmp"
+}
+
+cmd_register() {
+  local agent=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --agent) agent="${2:-}"; shift 2 ;;
+      *) echo "unknown arg: $1" >&2; return 2 ;;
+    esac
+  done
+  if [[ -z "$agent" ]]; then
+    echo "usage: COMS register --agent <role>" >&2
+    echo "example: COMS register --agent kilo" >&2
+    return 2
+  fi
+  identity "$agent"
+  mkdir -p "$(dirname "$LOCAL_REG")"
+  local repos json
+  repos="$(repo_urls)"
+  json="$(python3 - "$AGENT" "$HOST" "$WT" "$INBOX" "$SBUS" "$PATH_NOW" "$repos" <<'PY'
+import json, sys, datetime
+agent, host, wt, inbox, sbus, path, repos = sys.argv[1:8]
+print(json.dumps({
+  "agent": agent,
+  "host": host,
+  "os": "linux",
+  "worktree": wt,
+  "path": path,
+  "inbox": inbox,
+  "swarmbus_id": sbus,
+  "repos": [r for r in repos.split(",") if r],
+  "registered_at": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+}))
+PY
+)"
+  printf '%s\n' "$json" >> "$LOCAL_REG"
+  mosquitto_pub -h "$BROKER" -p "$PORT" -t "registry/${HOST}/${WT}/${AGENT}" -r -m "$json"
+  echo "registered ${INBOX}"
+  echo "$json"
+}
+
+cmd_prompt() {
+  cat <<'EOF'
+You are joining the swarm live bus. Git stays the durable drop. MQTT is only for wake-ups.
+
+Broker: 192.168.2.52:1883 (anonymous, no TLS).
+Repo: https://github.com/eltonaguiar/AGENT_FOLDERFRAMEWORK
+Read README.MD section "Per-agent inbox" and COMMUNICATION/mqtt_bus.yaml.
+
+From YOUR working directory (the worktree you were assigned, not a shared home folder):
+
+Linux:
+  COMS learn
+  COMS register --agent <your-role>
+  COMS roster
+
+Windows, after git pull in E:\AGENT_FOLDERFRAMEWORK:
+  powershell -File E:\AGENT_FOLDERFRAMEWORK\COMMUNICATION\coms.ps1 learn
+  powershell -File E:\AGENT_FOLDERFRAMEWORK\COMMUNICATION\coms.ps1 register -Agent <your-role>
+  powershell -File E:\AGENT_FOLDERFRAMEWORK\COMMUNICATION\coms.ps1 roster
+
+Role is kilo, claude, reviewer, librarian, or whatever you were named. Two agents in one worktree must use different roles.
+auditpage and auditpage-v2 are different inboxes even if both are named kilo.
+
+Your inbox will be inbox/<host>/<worktree>/<role>.
+Subscribe only to that topic, inbox/<host>/<worktree>/all, and mentions/all.
+Do not subscribe to inbox/<host>/# unless you are the machine monitor.
+Do not put secrets on the bus. Do not reinstall the broker.
+EOF
+}
+
+cmd_listen() {
+  local agent="${1:-${COMS_AGENT:-}}"
+  if [[ -z "$agent" ]]; then
+    echo "usage: COMS listen --agent <role>" >&2
+    return 2
+  fi
+  identity "$agent"
+  echo "listening ${INBOX}  (Ctrl-C to stop)"
+  exec mosquitto_sub -h "$BROKER" -p "$PORT" -v \
+    -t "$INBOX" \
+    -t "inbox/${HOST}/${WT}/all" \
+    -t "mentions/all"
+}
+
+cmd_send() {
+  local topic="${1:-}" msg="${2:-}"
+  if [[ -z "$topic" || -z "$msg" ]]; then
+    echo "usage: COMS send <topic> <message>" >&2
+    return 2
+  fi
+  mosquitto_pub -h "$BROKER" -p "$PORT" -t "$topic" -m "$msg"
+  echo "sent ${topic}"
+}
+
+menu() {
+  cat <<EOF
+COMS_MENU  broker ${BROKER}:${PORT}
+  1 learn     why, broker, github, inbox rule
+  2 status    is the broker up
+  3 roster    registered agents, folders, repos
+  4 register  COMS register --agent <role>   (run inside that agent's folder)
+  5 prompt    text to paste to any Linux or Windows agent
+  6 listen    COMS listen --agent <role>
+  q quit
+EOF
+  if [[ ! -t 0 ]]; then
+    return 0
+  fi
+  local choice
+  read -r -p "> " choice
+  case "$choice" in
+    1|learn) cmd_learn ;;
+    2|status) cmd_status ;;
+    3|roster) cmd_roster ;;
+    4|register) echo "run: COMS register --agent <role>" ;;
+    5|prompt) cmd_prompt ;;
+    6|listen) echo "run: COMS listen --agent <role>" ;;
+    q|Q|"") ;;
+    *) echo "unknown" ;;
+  esac
+}
+
+main() {
+  local cmd="${1:-menu}"
+  shift || true
+  case "$cmd" in
+    menu|"") menu ;;
+    learn|help|-h|--help) cmd_learn ;;
+    status) cmd_status ;;
+    roster|ls|list) cmd_roster ;;
+    register) cmd_register "$@" ;;
+    prompt) cmd_prompt ;;
+    listen)
+      local agent=""
+      while [[ $# -gt 0 ]]; do
+        case "$1" in
+          --agent) agent="${2:-}"; shift 2 ;;
+          *) agent="$1"; shift ;;
+        esac
+      done
+      cmd_listen "$agent"
+      ;;
+    send) cmd_send "$@" ;;
+    *) echo "unknown command: $cmd" >&2; cmd_learn; return 2 ;;
+  esac
+}
+
+main "$@"
