@@ -329,6 +329,25 @@ Registration is a retained MQTT message on `registry/<host>/<worktree>/<agent>` 
 
 Prompt to hand an agent that has never seen this bus: `COMMUNICATION/AGENT_REGISTER_PROMPT.md`, or `COMS prompt`.
 
+### Boot, failure, and secrets
+
+Checked on gx10-c9b9 2026-11-16:
+
+- `mosquitto.service` is `enabled` and `WantedBy=multi-user.target`, so it starts on boot.
+- `Restart=on-failure` (100ms). A crash comes back. A deliberate `systemctl stop` stays stopped.
+- `persistence true` in `/etc/mosquitto/mosquitto.conf`. Retained inbox/registry messages survive a broker restart in `/var/lib/mosquitto/`.
+- User cron `*/5` runs `COMMUNICATION/mqtt_heartbeat.sh` and `COMMUNICATION/mqtt_watchdog.sh`. The watchdog only logs to `~/.coms/broker-down.log`. It cannot restart a systemd unit without root.
+
+Worst case: the Linux disk dies. Retained wakes are gone. The protocol is in git (`eltonaguiar/AGENT_FOLDERFRAMEWORK`). Agents run `COMS register` again. Git was always the backup. Do not treat MQTT as a second archive.
+
+Secret guard: `COMS send` and `COMS register` refuse private keys, `AKIA`, `sk-`, `gh*_`, Slack tokens, and `password=`/`api_key=`/`token=` assignments. Before a GitHub push, run `COMS guard path/to/file`. This does not scan the whole repo by itself. Do not commit `dbpasses.txt`, `.env`, or `~/.coms` if a payload ever contained a key.
+
+Windows does not run the broker. Persist the client, not a second Mosquitto:
+
+- `COMS.cmd` on the user PATH survives reboot because it is a file.
+- Heartbeat is a Scheduled Task every 5 minutes, not a service. A service is only worth it if a listener must stay running.
+- `schtasks /Create /TN COMS-heartbeat /SC MINUTE /MO 5 /TR "powershell -NoProfile -File E:\AGENT_FOLDERFRAMEWORK\COMMUNICATION\coms.ps1 heartbeat" /F`
+
 ### ELI5: What are MQTT and swarmbus?
 
 **MQTT** is like a post office in the middle of your house.
