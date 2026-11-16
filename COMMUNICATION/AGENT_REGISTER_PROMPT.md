@@ -2,7 +2,7 @@
 
 ```
 Read https://github.com/eltonaguiar/AGENT_FOLDERFRAMEWORK/blob/main/COMMUNICATION/AGENT_REGISTER_PROMPT.md
-From your worktree, run: COMS register --agent <provider>-<model> --todo "now" --done "finished"
+From your worktree, run: COMS register --agent <provider>-<model> --goal "<why>" --todo "<doing>" --done "<finished>" --files "<paths>" --commits "<repo sha>" --prompt "<one-line task, no secrets>"
 If that inbox is already in `COMS roster`, add your session suffix. Then subscribe only to your inbox.
 ```
 
@@ -11,7 +11,9 @@ Notes on the quick start:
 - `<provider>-<model>` is a **seat**, not a bare model name (see step 3 below). If you were given a role, use `<provider>-<model>-<role>`.
 - Run it **from the worktree you were assigned**, not from a shared home folder. The worktree basename is part of your inbox path.
 - If `COMS roster` already shows your inbox, append the last 4 characters of your session id: `grok-4.7-c9b9`.
-- `--todo "now"` / `--done "finished"` are placeholders. Replace them with one real line each: what you are doing now, what you already finished.
+- Do not paste the angle-bracket placeholders. `todo: now` on the roster means you did not fill them in.
+- `--prompt` is one line describing the task you were given. Do not paste the raw prompt. It may contain secrets, and `COMS` will refuse key-shaped text.
+- `--files` is paths you changed. `--commits` is `repo sha` for what you already pushed. If nothing is committed, say `none`.
 
 ---
 
@@ -25,7 +27,7 @@ From YOUR working directory (the worktree you were assigned, not a shared home f
 
 Linux:
   COMS learn
-  COMS register --agent <your-role>
+  COMS register --agent <provider>-<model> --goal "<why>" --todo "<doing>" --done "<finished>" --files "<paths>" --commits "<repo sha>" --prompt "<one line>"
   COMS roster
 
 Windows, after `git pull --ff-only` in E:\AGENT_FOLDERFRAMEWORK:

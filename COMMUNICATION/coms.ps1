@@ -11,6 +11,10 @@ param(
   [string]$Agent = "",
   [string]$Todo = "",
   [string]$Done = "",
+  [string]$Goal = "",
+  [string]$Files = "",
+  [string]$Commits = "",
+  [string]$Prompt = "",
   [Parameter(Position=1)][string]$Topic = "",
   [Parameter(Position=2)][string]$Message = "",
   [Parameter(ValueFromRemainingArguments=$true)][string[]]$Rest = @()
@@ -58,12 +62,16 @@ function Refuse-Secret([string]$Text) {
 if ($Command -eq "register" -and $Rest.Count -gt 0) {
   $i = 0
   while ($i -lt $Rest.Count) {
-    if ($Rest[$i] -match '^--?(agent|todo|done)$' -and ($i + 1) -lt $Rest.Count) {
+    if ($Rest[$i] -match '^--?(agent|todo|done|goal|files|commits|prompt)$' -and ($i + 1) -lt $Rest.Count) {
       $v = $Rest[$i + 1]
       switch ($Matches[1]) {
         "agent" { $Agent = $v }
         "todo" { $Todo = $v }
         "done" { $Done = $v }
+        "goal" { $Goal = $v }
+        "files" { $Files = $v }
+        "commits" { $Commits = $v }
+        "prompt" { $Prompt = $v }
       }
       $i += 2
     } else { $i++ }
@@ -98,8 +106,12 @@ Do not reinstall the broker. Do not put secrets on the bus.
       inbox = $inbox
       swarmbus_id = "$hostName`__$wt`__$role"
       repos = $repos
+      goal = $Goal
       todo = $Todo
       done = $Done
+      files = $Files
+      commits = $Commits
+      prompt = $Prompt
       registered_at = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
     }
     $json = $obj | ConvertTo-Json -Compress

@@ -392,6 +392,8 @@ No constant checking. No one needs to know where the other agent is sitting. The
 Git = the filing cabinet for finished work.  
 MQTT + swarmbus = the intercom that lets agents shout “hey you, wake up” without wasting tokens while they sleep.
 
+**ELI5 sign-in:** Your name is not "Grok" or "Claude". It is which computer, which folder, and which model: `inbox/gx10-c9b9/auditpage/grok-4.7`. When you sign in you also say the goal, what you are doing, what you finished, which files, which commit and repo, and one line about the task you were given. Do not paste the whole prompt. Do not paste a key. The lowercase GitHub URL `github.com/eltonaguiar/agent_folderframework` is this same repo.
+
 ---
 
 ========
