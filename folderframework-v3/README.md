@@ -8,8 +8,10 @@ Created: 2026-11-16 (UTC)
 
 | Path | Purpose |
 |------|---------|
-| `2026-11-16-SWARM/` | Dated artifact scaffold implementing the protocol in `/README.MD` (repo root) — charter, TODO/DONE domains, phased review folders, final-plan templates. |
-| `tools/swarm/swarm_librarian.py` | Stdlib-only CLI: `scaffold` a dated SWARM folder, `collect` markdown/JSON evidence out of an agent worktree, `index` everything in a SWARM folder. |
+| `2026-11-16-SWARM/` | Dated artifact scaffold implementing the protocol in `/README.MD` (repo root) — charter, TODO/DONE domains, phased review folders, final-plan templates, `swarm_domains.txt`, `templates/`. |
+| `tools/swarm/swarm_librarian.py` | Stdlib-only CLI: `scaffold` (generic `--domains`), `collect` (multi-src, never overwrites), `index`, `validate` (structural + front-matter + evidence lint). |
+| `AGENT_PROMPT.md` | Mandatory one-page contract for any agent working a SWARM drop (placement, front-matter, evidence, phase gates, git safety). |
+| `v2/` | Second-pass drop: cross-review of all four peers (v1–v4) with independently re-verified evidence, external-review adoption ledger, merged recommendations (R1–R17), human decisions (D1–D8), open questions (Q1–Q9), research backlog (F1–F8). |
 
 The protocol document itself lives at the repository root (`README.MD`) and is the source of truth. This subfolder is one agent-worktree's concrete instantiation: copy `2026-11-16-SWARM/` to the top of the target repo (or keep it here as the shared artifact store) and follow the phases.
 
@@ -17,7 +19,7 @@ The protocol document itself lives at the repository root (`README.MD`) and is t
 
 ```bash
 # Regenerate the scaffold for another date / location:
-python3 tools/swarm/swarm_librarian.py scaffold --date 2026-11-17 --root .
+python3 tools/swarm/swarm_librarian.py scaffold --date 2026-11-17 --root . --domains DB,GHACTIONS,AUDIT,ML_CALIBRATION
 
 # Harvest an agent worktree's .md (and small .json evidence) into 03_DONE/DB/:
 python3 tools/swarm/swarm_librarian.py collect \

@@ -1,5 +1,7 @@
 # 2026-11-16-SWARM — dated artifact folder
 
+> **Note (2026-11-16, second pass):** `07_final_review4/*.md` here are **unfilled templates by design** — this worktree's drop-1 scope was framework scaffolding, not domain findings. Both peers (`folderframework/v2/PEER_REVIEW.md`, `folderframework-v4/v2/01_PEER_REVIEW.md §C`) correctly flagged that these must not be read as a plan. This agent's actual findings live in `folderframework-v3/v2/`.
+
 Implements the **Swarm / Isolated-Worktree Framework** (see repo-root `README.MD`). Phases:
 
 | Phase | Where | Who | Output |
