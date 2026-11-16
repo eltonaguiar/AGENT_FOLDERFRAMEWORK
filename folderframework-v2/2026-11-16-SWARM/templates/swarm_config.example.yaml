@@ -1,0 +1,35 @@
+# Example swarm_config — generic domains, no hard-coded lists
+# Usage:
+#   python3 tools/swarm/swarm_librarian.py scaffold --config swarm_config.yaml
+#   python3 tools/swarm/swarm_librarian.py validate  --config swarm_config.yaml <swarm-path>
+
+swarm:
+  date: "2026-11-16"
+  canonical_template: "folderframework-v3/2026-11-16-SWARM"
+  domains: ["DB", "GHACTIONS", "AUDIT", "PREDICTION", "CROSSCUTTING"]
+  # Add arbitrary new domains without forking the scaffold:
+  # domains: ["DB","GHACTIONS","AUDIT","PREDICTION","FRONTEND","SECURITY","ML_CALIBRATION"]
+
+rules:
+  required_phase_folders: ["00_CHARTER.md", "01_TODO", "02_IN_PROGRESS", "03_DONE",
+                           "04_final_review", "05_final_reviewv2", "06_final_review3",
+                           "07_final_review4", "99_archive"]
+  canonical_outputs:
+    "07_final_review4": ["PLAN.md", "IMPLEMENTATION_STEPS.md", "TESTING_PLAN.md",
+                         "FILES_TO_TOUCH.md", "EVIDENCE_INDEX.md"]
+  front_matter_required: true
+  front_matter_fields: [agent, worktree, domain, phase, status, evidence]
+  filename_pattern: "<agent_id>_<topic>.md"
+  worktree_naming: "wt-<domain>-<short-id>"
+  max_age_hours: 6          # archive worktrees with no commits after this
+  crosscutting_is_escape_hatch: true
+  never_commit: [".env", "*.key", "*.pem", "*dump*.sql", "*.zip", "*.png"]
+
+evidence:
+  attach_raw: "evidence/"   # raw command output / snippets live here, not inline
+  redact_patterns: ["password=", "api[_-]?key", "BEGIN .* PRIVATE KEY"]
+
+human_gate:
+  phase_7_requires: "human_or_merge_agent"
+  force_push_allowed: false
+  branch_strategy: "cherry-pick md-only commits onto a dated swarm branch"

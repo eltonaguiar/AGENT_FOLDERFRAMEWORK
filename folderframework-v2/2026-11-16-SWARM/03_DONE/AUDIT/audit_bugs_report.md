@@ -1,4 +1,4 @@
-# Audit Bug Findings and Next Steps
+# Audit Bug Findings and Next Steps (v2)
 
 ## Bug Locations
 1. **`dashboard/generate_dashboard.py`, lines 15 & 30**
@@ -14,23 +14,37 @@
    - **Fix:** Confirm all picks have correct fields before summation.
 
 4. **`hub/data/integrated_dashboard.json`**
-   - **Issue:** No active systems reported — systemic failure.
-   - **Fix:** Implement status update scripts for active systems.
+   - **Plumbing Issue:** `active_systems: 0`, all `status: "unknown"`, Windows `registry_path`.
+   - **Fix:** Regenerate or deprecate; use live source JSON directly.
 
 5. **`hub/data/winning_combos.json`**
-   - **Issue:** No winning combos found.
-   - **Fix:** Run algorithmic strategies for generation.
+   - **Issue:** `total_found: 0`, no winning combos.
+   - **Fix:** Run algorithmic strategies or mark as "dna_run_pending".
 
-## Prioritized Work List
-1. **Quick Display Fixes**:
-   - Resolve `pnl_class` and display errors in `index.html` (avoid "No Data" displays).
+6. **`dashboard/index.html` side badges**
+   - **Bug:** `BUY`/`SELL` renders as `short`/`short` (wrong class).
+   - **Fix:** Normalize `side` to `LONG`/`SHORT` via `normalize_side()`.
 
-2. **Plumbing Fixes**:
-   - Update methods to ensure `integrated_dashboard` and `winning_combos` files are refreshed iteratively.
+7. **`audit_systems.py` data source**
+   - **Issue:** Uses `ml_battleground` for Battleground WR (5.3%) but `battleground/data/closed_picks.json` for enhanced dashboard (56.9%).
+   - **Fix:** Unify to canonical `battleground/data/closed_picks.json` for both.
 
-3. **Research/Strategy Work**:
-   - Review panic-sell logic and test deeper impacts.
-   - Run strategy evaluations for winning history.
+## Prioritized Work List (v2)
 
----
-*Generated reports on 2026-11-16*
+### (i) Quick display / correctness fixes (≤1 PR)
+- Fix `pnl_class`, `pnl_unreal_class`, `pnl_real_class` to handle zero P/L as neutral.
+- Ensure `dashboard/index.html` does not show generic "No data" when verdict is empty.
+- Add 6-item pre-final-review checklist to every agent prompt (see v2 charter).
+
+### (ii) Plumbing fixes (medium effort)
+- Promote v3 `swarm_librarian.py` + scaffold as canonical; add `--domains` and `validate` subcommands.
+- Move v4 GHACTIONS content into proper dated `2026-11-16-SWARM/` structure.
+- Add front-matter validation to the librarian (fail on missing `agent`, `domain`, `evidence`).
+- Enforce worktree naming `wt-<domain>-<short-id>` via prompt contract.
+
+### (iii) Research / strategy work (decision-gated)
+- Trace exact `_snapshot_prediction_market_entry` call path on live site.
+- Re-run `audit-dashboard.yml` with fresh Actions log to verify 404-JS / Infinity fix.
+- Decide sports retirement banner (cosmetic vs. explicit intent) and rename 5 `sports-*.yml` → `.yml.disabled`.
+- Extend framework to support arbitrary new domains via `--domains` flag or config file.
+- Extend evidence attachment to `evidence/` subfolder (raw JSON/snippets, not inline).
