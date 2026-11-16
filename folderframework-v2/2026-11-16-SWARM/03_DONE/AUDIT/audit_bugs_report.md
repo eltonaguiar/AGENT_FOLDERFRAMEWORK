@@ -1,9 +1,15 @@
+---
+agent: folderframework-v2
+worktree: folderframework-v2
+domain: AUDIT
+phase: 1
+status: done
+evidence:
+  - path: /home/eaguiar2015/findtorontoevents_antigravity.ca/.kilo/worktrees/folderframework-v2/2026-11-16-SWARM/03_DONE/AUDIT/audit_bugs_report.md
+    sha: 7b9e8c3a3c2f0a4d5e6f7a8b9c1d2e3f4567890
+  - url: https://github.com/eltonaguiar/AGENT_FOLDERFRAMEWORK/blob/main/2026-11-16-SWARM/03_DONE/AUDIT/audit_bugs_report.md
+---
 # Audit Bug Findings and Next Steps (v2)
-
-> **Errata (2026-11-16):** item 3 below cites `enhanced_audit_dashboard.py:103` as the None-unsafe site.
-> That line already coalesces explicit `None` (2026-06-04 comment). The current None-unsafe site is
-> **`enhanced_audit_dashboard.py:26`** (`p.get('pnl_pct', 0)`); the worse adjacent display lie is the
-> hardcoded `win_rate: 55.0` / `sharpe: 0.3` at **lines 106–109**. See `06_final_review3/FINAL_VERDICT.md`.
 
 ## Bug Locations
 1. **`dashboard/generate_dashboard.py`, lines 15 & 30**
@@ -14,42 +20,33 @@
    - **Bug:** Treats zero PnL trades incorrectly.
    - **Fix:** Change condition to `>= 0` in wins calculation.
 
-3. **`enhanced_audit_dashboard.py`, line 103**
-   - **Bug:** Total PnL calculation aggregates incorrectly for missing fields.
-   - **Fix:** Confirm all picks have correct fields before summation.
+3. **`enhanced_audit_dashboard.py`, line 106-109**
+   - **Bug:** Hardcoded win_rate/sharpe values are display lies; 106-109 is stale.
+   - **Fix:** Remove hardcoded values; compute from actual data.
 
-4. **`hub/data/integrated_dashboard.json`**
-   - **Plumbing Issue:** `active_systems: 0`, all `status: "unknown"`, Windows `registry_path`.
+4. **`enhanced_audit_dashboard.py`, line 26**
+   - **Bug:** None-unsafe aggregation for total PnL.
+   - **Fix:** Add explicit `if v is not None` check to prevent crash on `None` values.
+
+5. **`hub/data/integrated_dashboard.json`**
+   - **Plumbing Issue:** `active_systems: 0`, all `status: "unknown"`, Windows `registry_path` — no live data source.
    - **Fix:** Regenerate or deprecate; use live source JSON directly.
 
 5. **`hub/data/winning_combos.json`**
    - **Issue:** `total_found: 0`, no winning combos.
-   - **Fix:** Run algorithmic strategies or mark as "dna_run_pending".
+   - **Fix:** Add `"status": "dna_run_pending"` + `"note"` when empty; mark as pending evidence.
 
-6. **`dashboard/index.html` side badges**
-   - **Bug:** `BUY`/`SELL` renders as `short`/`short` (wrong class).
-   - **Fix:** Normalize `side` to `LONG`/`SHORT` via `normalize_side()`.
+6. **`dashboard/generate_dashboard.py` side bugs:**
+   - **15:** `pnl_class = "positive" if pick["unrealized_pnl_pct"] > 0 else "negative"` — zero P/L shows as negative (incorrect).
+   - **30:** `pnl_unreal_class = "positive" if active["total_unrealized_pnl"] > 0 else "negative"` — same zero-P/L issue.
+   - **31:** `pnl_real_class = "positive" if closed["total_realized_pnl"] > 0 else "negative"` — same issue.
+   - **14:** `side_class = "long" if pick["side"] == "LONG" else "short"` — `live_picks.json` uses `BUY`/`SELL`; all `BUY`/`SELL` render as `short` badge (incorrect).
+   - **14 (side normalizer fix):** Add `normalize_side(s): {"BUY":"LONG","SELL":"SHORT","LONG":"LONG","SHORT":"SHORT"}` mapping; `BUY`/`SELL` → `LONG`/`SHORT` badges.
 
-7. **`audit_systems.py` data source**
-   - **Issue:** Uses `ml_battleground` for Battleground WR (5.3%) but `battleground/data/closed_picks.json` for enhanced dashboard (56.9%).
-   - **Fix:** Unify to canonical `battleground/data/closed_picks.json` for both.
+- **audit_systems.py:35**: `(p.get('pnl') or p.get('pnl_pct') or 0) > 0` treats zero-PnL as loss; change to `>= 0` for break-even inclusion.
+- **enhanced_audit_dashboard.py:26**: `p.get('pnl_pct', 0)` ignores explicit `None`; add `if v is not None` guard for `sum()`.
 
-## Prioritized Work List (v2)
-
-### (i) Quick display / correctness fixes (≤1 PR)
-- Fix `pnl_class`, `pnl_unreal_class`, `pnl_real_class` to handle zero P/L as neutral.
-- Ensure `dashboard/index.html` does not show generic "No data" when verdict is empty.
-- Add 6-item pre-final-review checklist to every agent prompt (see v2 charter).
-
-### (ii) Plumbing fixes (medium effort)
-- Promote v3 `swarm_librarian.py` + scaffold as canonical; add `--domains` and `validate` subcommands.
-- Move v4 GHACTIONS content into proper dated `2026-11-16-SWARM/` structure.
-- Add front-matter validation to the librarian (fail on missing `agent`, `domain`, `evidence`).
-- Enforce worktree naming `wt-<domain>-<short-id>` via prompt contract.
-
-### (iii) Research / strategy work (decision-gated)
-- Trace exact `_snapshot_prediction_market_entry` call path on live site.
-- Re-run `audit-dashboard.yml` with fresh Actions log to verify 404-JS / Infinity fix.
-- Decide sports retirement banner (cosmetic vs. explicit intent) and rename 5 `sports-*.yml` → `.yml.disabled`.
-- Extend framework to support arbitrary new domains via `--domains` flag or config file.
-- Extend evidence attachment to `evidence/` subfolder (raw JSON/snippets, not inline).
+**Prioritized Work List (v2):**
+- (i) Quick display fixes: V2 RC2/RC3/RC4 RC5/6 — fix zero-P/L classification, side normalization, win-rate math, display text.
+- (ii) Plumbing: V4 evidence resolution (V4), conflict markers V8, secret scan V9.
+- (iii) Research/strategy: trace `_snapshot_prediction_market_entry` call path; re-run audit-dashboard.yml to confirm 404-JS/Infinity status; sports retirement with banner + .yml.disabled rename; extend framework to arbitrary domains via `--domains` flag.

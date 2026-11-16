@@ -27,7 +27,20 @@ from pathlib import Path
 DEFAULT_DOMAINS = ["DB", "GHACTIONS", "AUDIT", "PREDICTION"]
 REQUIRED_REVIEW4 = ["PLAN.md", "TESTING_PLAN.md", "IMPLEMENTATION_STEPS.md", "FILES_TO_TOUCH.md", "EVIDENCE_INDEX.md"]
 PHASE_DIRS = ["01_TODO", "02_IN_PROGRESS", "03_DONE", "04_final_review", "05_final_reviewv2", "06_final_review3", "07_final_review4", "99_archive"]
-ALLOWED_TOP_EXTRA = {"README.md", "00_CHARTER.md", "INDEX.md", "templates", "tools", "swarm_domains.txt", "evidence"}
+ALLOWED_TOP_EXTRA = {"README.md", "HANDOFF.md", "00_CHARTER.md", "INDEX.md", "templates", "tools", "swarm_domains.txt", "evidence"}
+
+# V8: conflict markers. V9: secret-like strings. Both are hard errors.
+CONFLICT_MARKER_RE = re.compile(r"^(<{7}|={7}|>{7})", re.MULTILINE)
+SECRET_PATTERNS = [
+    (re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----"), "private-key"),
+    (re.compile(r"\bAKIA[0-9A-Z]{16}\b"), "aws-key"),
+    (re.compile(r"\bsk-[A-Za-z0-9]{20,}"), "sk-token"),
+    (re.compile(r"\bgh[pousr]_[A-Za-z0-9]{20,}"), "github-token"),
+    (re.compile(r"\bxox[baprs]-[A-Za-z0-9-]{10,}"), "slack-token"),
+    (re.compile(r"(?i)(api[_-]?key|secret|password|passwd|token)\s*[:=]\s*\S{8,}"), "assigned-secret"),
+]
+# V4: path-like evidence tokens, resolved relative to the source repo (optional).
+PATH_TOKEN_RE = re.compile(r"(?<![\w/:])([\w./-]+\.(?:py|md|json|ya?ml|html|sql|tsv|js))(?::\d+)?\b")
 SKIP_DIR_NAMES = {".git", "node_modules", "__pycache__", ".next", "dist", "build"}
 DEFAULT_MAX_JSON_BYTES = 256 * 1024  # evidence files only; bigger JSON stays out
 
@@ -241,6 +254,27 @@ def cmd_validate(args: argparse.Namespace) -> int:
                 if not EVIDENCE_RE.search(text):
                     warnings.append(f"review file has no evidence token (path/URL/SHA): {f.relative_to(root)}")
 
+    # V8 (errors) + V9 (errors): conflict markers and secret-like strings anywhere in the tree.
+    # V4 (warnings): path-like evidence tokens resolve against an optional source repo root.
+    repo_root = Path(args.repo_root).resolve() if getattr(args, "repo_root", None) else None
+    for f in sorted(root.rglob("*.md")):
+        if any(part in SKIP_DIR_NAMES for part in f.parts):
+            continue
+        rel = f.relative_to(root)
+        text = f.read_text(encoding="utf-8", errors="replace")
+        if CONFLICT_MARKER_RE.search(text):
+            errors.append(f"V8 conflict marker present: {rel}")
+        for pat, name in SECRET_PATTERNS:
+            if pat.search(text):
+                errors.append(f"V9 secret-like string ({name}): {rel}")
+        if repo_root is not None and repo_root.is_dir():
+            for m in PATH_TOKEN_RE.finditer(text):
+                tok = m.group(1)
+                if tok.startswith(("http", "inbox", "templates")) or "/" not in tok:
+                    continue
+                if not (repo_root / tok).exists():
+                    warnings.append(f"V4 evidence path not found under repo root: {tok} (in {rel})")
+
     for e in errors:
         print(f"ERROR   {e}")
     for w in warnings:
@@ -280,6 +314,7 @@ def main() -> int:
     vp = sub.add_parser("validate", help="lint a SWARM folder against the structural contract")
     vp.add_argument("--dir", required=True)
     vp.add_argument("--strict", action="store_true", help="treat warnings as failures")
+    vp.add_argument("--repo-root", help="source repo root; enables V4 evidence-path resolution")
     vp.set_defaults(fn=cmd_validate)
 
     args = ap.parse_args()
