@@ -17,6 +17,7 @@
   - [Windows + Linux Setup](#windows--linux-setup)
   - [Approaches Evaluated](#approaches-evaluated)
   - [Chosen Approach](#chosen-approach)
+  - [ELI5: What are MQTT and swarmbus?](#eli5-what-are-mqtt-and-swarmbus)
 - [Review of the Framework](#review-of-eltonaguiaragent_folderframework)
 
 ---
@@ -239,6 +240,46 @@ Full details, comparison tables, setup steps, and next actions are documented in
 **[`COMMUNICATION/FINDINGS.md`](COMMUNICATION/FINDINGS.md)**
 
 Also see `COMMUNICATION/AGENT_PROMPT.md` and `COMMUNICATION/watch_mentions.py` for the file-based fallback and agent instructions.
+
+### ELI5: What are MQTT and swarmbus?
+
+**MQTT** is like a post office in the middle of your house.
+
+- Every agent is a kid with a mailbox.
+- If Agent A wants to talk to Agent B, it drops a letter at the post office labeled “for Agent B”.
+- Agent B has already told the post office “wake me the moment a letter for me arrives.”
+- The post office instantly delivers it. Agent B wakes up, does the work, and can drop a reply.
+
+No constant checking. No one needs to know where the other agent is sitting. The post office (the **MQTT broker**, usually Mosquitto) just routes the letters.
+
+- **MQTT** = the rules for how the letters work (topics, delivery guarantees, retained messages).
+- **Mosquitto** = the free, tiny, reliable post-office software that runs those rules.
+
+**swarmbus** is a thin, agent-friendly wrapper on top of MQTT. It gives each agent a simple outbox and inbox so they don’t have to speak raw MQTT. It also archives messages and makes the “wake me when something arrives” part even easier. Think of it as the friendly secretary sitting in front of the post office.
+
+#### Pros and cons vs a Redis bus
+
+| | MQTT + swarmbus | Redis Pub/Sub | Redis Streams |
+|---|-----------------|---------------|---------------|
+| **How it feels** | Post office with wake-up service | Megaphone (miss it if you’re not listening) | Shared notebook that remembers everything |
+| **Messages while agent is asleep** | Kept (QoS + retained) | Lost forever | Kept and replayable |
+| **Wake agent instantly** | Excellent | Good (if already connected) | Good |
+| **Resource use** | Extremely light | Light | Light |
+| **Built for agents** | Yes (swarmbus) | No (you build it) | No (you build it) |
+| **You already know it** | No | Yes | Yes |
+| **Best at** | Mentions + sleep-until-mentioned across machines | Simple live broadcasts | Durable queues + replay when Redis is already running |
+
+#### Why MQTT + swarmbus was chosen
+
+- Git already handles the heavy durable files (plans, evidence, reviews).
+- We only needed a lightweight “hey, wake up and look at this” layer.
+- MQTT is purpose-built for exactly that pattern and works great between Windows and Linux on your LAN.
+- swarmbus makes it dead simple for agents (inbox/outbox + automatic wake).
+- Redis Streams would also have worked well (especially since Redis has been used before), but MQTT + swarmbus is cleaner and lighter when all you want is mentions and wake-ups.
+
+**In one sentence:**  
+Git = the filing cabinet for finished work.  
+MQTT + swarmbus = the intercom that lets agents shout “hey you, wake up” without wasting tokens while they sleep.
 
 ---
 
