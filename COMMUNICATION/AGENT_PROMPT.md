@@ -1,6 +1,12 @@
 # AGENT_PROMPT — multi-PC mentions
 
-You are on one machine. Other agents are not in your process. Git is the board.
+You are on one machine. Other agents are not in your process.
+
+For durable work use Git. For @mentions and wake signals publish to the MQTT broker at 192.168.2.52:1883.
+
+Your inbox is `inbox/<hostname -s>/<worktree-basename>/<agent-role>`, not the machine. Subscribe only to that topic, `inbox/<host>/<worktree>/all`, and `mentions/all`. Two agents in one worktree need different role names. See README section Per-agent inbox.
+
+Git remains the board for artifacts, plans, evidence, and handoffs. MQTT is live only. Do not put secrets on either bus. Config: `COMMUNICATION/mqtt_bus.yaml`.
 
 Before work:
 

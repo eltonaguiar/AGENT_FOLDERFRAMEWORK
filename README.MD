@@ -18,6 +18,7 @@
   - [Approaches Evaluated](#approaches-evaluated)
   - [Chosen Approach](#chosen-approach)
   - [ELI5: What are MQTT and swarmbus?](#eli5-what-are-mqtt-and-swarmbus)
+  - [Per-agent inbox](#per-agent-inbox)
 - [Review of the Framework](#review-of-eltonaguiaragent_folderframework)
 
 ---
@@ -211,7 +212,7 @@ Agents run across multiple physical machines (Windows desktop + Linux ASUS GX10 
 | Machine | IP | Primary project path | Role |
 |---------|----|----------------------|------|
 | Windows | 192.168.2.32 | `E:\findtorontoevents_antigravity.ca` | Heavy agents, local models, worktrees |
-| Linux   | 192.168.2.52 | `/home/eaguiar2015/...` (discover exact path) | Broker host + librarian / long-running agents |
+| Linux   | 192.168.2.52 | `/home/eaguiar2015/findtorontoevents_antigravity.ca` | Broker host + librarian / long-running agents |
 
 Both machines share the same Git remotes. Agents on either machine can push/pull the dated SWARM folders and the `COMMUNICATION/` directory.
 
@@ -231,7 +232,7 @@ Both machines share the same Git remotes. Agents on either machine can push/pull
 **Git for durable files + MQTT (Mosquitto) + swarmbus for live messaging.**
 
 - Durable work (plans, evidence, reviews, handoffs) is committed and pushed to the Git repo.
-- Live @mentions, status, and wake signals go over MQTT topics (`mentions/<agent>`, `mentions/all`, `board/posts`).
+- Live @mentions, status, and wake signals go over MQTT. Each agent has its own inbox: `inbox/<host>/<worktree>/<agent>`. See [Per-agent inbox](#per-agent-inbox). `mentions/all` is the only cross-machine broadcast.
 - Broker runs on the Linux machine (192.168.2.52:1883).
 - Agents sleep until a message arrives on their topic (zero-token idle).
 
@@ -239,7 +240,66 @@ Full details, comparison tables, setup steps, and next actions are documented in
 
 **[`COMMUNICATION/FINDINGS.md`](COMMUNICATION/FINDINGS.md)**
 
-Also see `COMMUNICATION/AGENT_PROMPT.md` and `COMMUNICATION/watch_mentions.py` for the file-based fallback and agent instructions.
+Also see `COMMUNICATION/AGENT_PROMPT.md`, `COMMUNICATION/mqtt_bus.yaml`, and `COMMUNICATION/watch_mentions.py`.
+
+### Per-agent inbox
+
+A machine is not an inbox. Linux has several worktrees (`auditpage`, `auditpage-v2`, `folderframework-v3`, …) and several agents inside each one. If they all subscribe to `mentions/linux`, they wake each other. Each agent therefore owns one topic and subscribes only to that topic, plus its subtree broadcast and `mentions/all`.
+
+Identity is three labels:
+
+| Part | Source | Example |
+|------|--------|---------|
+| host | `hostname -s` | `gx10-c9b9`, `DESKTOP-081G9OH` |
+| worktree | basename of the git worktree (`git rev-parse --show-toplevel`) | `auditpage`, `auditpage-v2` |
+| agent | role or session name. Required when more than one agent shares a worktree. | `kilo`, `claude`, `reviewer` |
+
+MQTT topic (slashes, so a parent can subscribe with `#`):
+
+```
+inbox/<host>/<worktree>/<agent>
+```
+
+swarmbus agent-id cannot contain slashes. Use the same three labels joined by `__`:
+
+```
+<host>__<worktree>__<agent>
+```
+
+Examples for the current Linux worktrees:
+
+| Agent | MQTT subscribe | swarmbus `--agent-id` |
+|-------|----------------|------------------------|
+| kilo in auditpage | `inbox/gx10-c9b9/auditpage/kilo` | `gx10-c9b9__auditpage__kilo` |
+| reviewer in the same worktree | `inbox/gx10-c9b9/auditpage/reviewer` | `gx10-c9b9__auditpage__reviewer` |
+| kilo in auditpage-v2 | `inbox/gx10-c9b9/auditpage-v2/kilo` | `gx10-c9b9__auditpage-v2__kilo` |
+| claude on Windows auditpage | `inbox/DESKTOP-081G9OH/auditpage/claude` | `DESKTOP-081G9OH__auditpage__claude` |
+
+Subscribe set for one agent:
+
+```
+inbox/<host>/<worktree>/<agent>     # only me
+inbox/<host>/<worktree>/all         # everyone in this subtree
+mentions/all                        # both machines
+```
+
+A subtree lead who must see all four agents in that worktree, and not the other subtree, subscribes to `inbox/<host>/<worktree>/#`. A machine monitor uses `inbox/<host>/#`. Do not use those wide subscriptions for a worker. A wide sub wakes on every sibling message.
+
+Publish to one agent:
+
+```
+mosquitto_pub -h 192.168.2.52 -p 1883 \
+  -t inbox/gx10-c9b9/auditpage-v2/reviewer \
+  -m 'look at 03_DONE/AUDIT/'
+```
+
+Retained liveness, same shape: `status/<host>/<worktree>/<agent>`.
+
+Rules:
+
+- Two agents in the same worktree must set different `agent` names. Same name means one shared inbox.
+- Git stays the durable drop. The inbox is only the wake. Do not put secrets or full artifacts in the payload.
+- Broker: `192.168.2.52:1883`, anonymous for now. Config file: `COMMUNICATION/mqtt_bus.yaml`.
 
 ### ELI5: What are MQTT and swarmbus?
 

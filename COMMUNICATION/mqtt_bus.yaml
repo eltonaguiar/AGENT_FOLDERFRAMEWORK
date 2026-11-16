@@ -1,0 +1,16 @@
+broker: 192.168.2.52
+port: 1883
+anonymous: true
+tls: false
+topics:
+  inbox: inbox/<host>/<worktree>/<agent>
+  subtree: inbox/<host>/<worktree>/all
+  machine: inbox/<host>/all
+  mentions_all: mentions/all
+  board: board/posts
+  status: status/<host>/<worktree>/<agent>
+swarmbus_agent_id: <host>__<worktree>__<agent>
+notes:
+  durable: git under AGENT_FOLDERFRAMEWORK dated SWARM folders and COMMUNICATION/
+  live: mqtt only for mentions and wake-ups
+  broker_host: gx10-c9b9
