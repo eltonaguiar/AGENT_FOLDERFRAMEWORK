@@ -179,7 +179,7 @@ This framework is deliberately heavy on artifacts and light on real-time chat. I
 
 
 ========
-**Review of `eltonaguiar/AGENT_FOLDERFRAMEWORK`**
+# **Review of `eltonaguiar/AGENT_FOLDERFRAMEWORK`**
 
 The agents did a solid job materializing the framework you described. The root `README.MD` is essentially the protocol I outlined earlier, and the versioned folders (`folderframework-v2`, `v3`, `v4`) show real attempts to turn it into concrete artifacts. `v3` is the cleanest scaffold (with a working `swarm_librarian.py`), while `v4` is a strong domain-specific execution (GHACTIONS) that already produces high-quality `PLAN.md`, evidence index, and implementation steps.
 
