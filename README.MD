@@ -175,3 +175,107 @@ A final small group (or the synthesizer + evidence agent) does four things:
 - Optional: a simple checklist in `00_CHARTER.md` that agents must tick before writing their final_review.
 
 This framework is deliberately heavy on artifacts and light on real-time chat. It scales from 4 agents to 20, survives crashes, produces a single auditable plan, and maps cleanly onto your existing WIRED_IN / GHACTIONS / audit_dashboard layout. You can start with a single domain (e.g. AUDIT page fixes) as a pilot and expand once the process feels smooth.
+
+
+
+========
+**Review of `eltonaguiar/AGENT_FOLDERFRAMEWORK`**
+
+The agents did a solid job materializing the framework you described. The root `README.MD` is essentially the protocol I outlined earlier, and the versioned folders (`folderframework-v2`, `v3`, `v4`) show real attempts to turn it into concrete artifacts. `v3` is the cleanest scaffold (with a working `swarm_librarian.py`), while `v4` is a strong domain-specific execution (GHACTIONS) that already produces high-quality `PLAN.md`, evidence index, and implementation steps.
+
+### Significant Issues / Gaps the Agents Missed
+
+1. **Inconsistent structure across versions (the biggest practical problem)**
+   - `v2` uses `00_CHARTER/` (folder) instead of `00_CHARTER.md` (file).
+   - `v3` has a full dated `2026-11-16-SWARM/` with proper `01_TODO/`, `03_DONE/`, review phases, and templates.
+   - `v4` abandons the dated SWARM root and puts `00_CHARTER.md` + `03_DONE/` + `07_final_review4/` directly under `folderframework-v4/`.
+   - Result: no single canonical layout. Agents (and humans) will put files in different places.
+
+2. **Domain folders are hard-coded and not generic**
+   - Domains (`DB`, `GHACTIONS`, `AUDIT`, `PREDICTION`, `CROSSCUTTING`) are baked into the scaffold script and READMEs.
+   - The framework is supposed to be generic so it can be reused for arbitrary tasks. There is no clean way for an agent to declare a new domain (e.g. `FRONTEND`, `SECURITY`, `ML_CALIBRATION`) without forking the structure.
+
+3. **No enforcement mechanism for placement**
+   - The librarian script can `collect` and `index`, but nothing prevents an agent from dropping files in the wrong phase folder, using inconsistent naming, or skipping required templates.
+   - No validation step that fails if required files (e.g. `PLAN.md` with specific headings) are missing or if evidence links are broken.
+
+4. **Missing operational pieces**
+   - No agent prompt templates that force the structure (the single most effective consistency tool).
+   - No “schema” or machine-readable contract (JSON schema / front-matter) for review files and final plans.
+   - No clear rule for when to create a new dated SWARM vs. append to an existing one.
+   - Limited handling of cross-domain work (CROSSCUTTING exists in v3 but is under-specified).
+   - No guidance on how agents should name their worktrees or how the librarian discovers them.
+
+5. **Evidence and reproducibility gaps**
+   - `v4` is excellent on evidence linking, but the earlier versions are mostly empty scaffolds.
+   - No standard way to attach raw evidence (command output, JSON snippets, screenshots) without polluting the markdown.
+   - The librarian’s `collect` is useful but is not automatically invoked; agents must remember to run it.
+
+6. **Phase transition rules are under-specified**
+   - When is Phase 1 “done”? Who decides the swarm moves from `03_DONE` to `04_final_review`?
+   - No timeout / stall detection beyond the original suggestion.
+   - No conflict-resolution protocol when two agents produce contradictory `final_review` files.
+
+### How to Get Consistent Folder Structure Without Killing Creativity
+
+The goal is **strict on placement and required artifacts, loose on content**.
+
+**1. Make the scaffold the single source of truth (do this first)**
+- Promote `folderframework-v3`’s `2026-11-16-SWARM/` layout as the only allowed structure.
+- Extend `swarm_librarian.py scaffold` so it is the *only* way to create a new swarm folder.
+- Add a `--domains` flag so domains are configurable:
+  ```bash
+  python3 tools/swarm/swarm_librarian.py scaffold --date 2026-11-17 --domains DB,GHACTIONS,AUDIT,PREDICTION,FRONTEND,SECURITY
+  ```
+
+**2. Agent prompt contract (highest leverage)**
+Give every agent a short, mandatory preamble that includes:
+- Exact path where it must write (`YYYY-MM-DD-SWARM/03_DONE/<DOMAIN>/`)
+- Required filename pattern (`<agent_or_worktree>_<topic>.md`)
+- Required sections (or a link to a template)
+- Instruction: “Do not create new top-level folders. If you need a new domain, note it in CROSSCUTTING and request a librarian run.”
+
+**3. Lightweight validation (add to librarian)**
+Add a `validate` subcommand that checks:
+- Required phase folders exist
+- Every file in `03_DONE/` has a corresponding evidence note or link
+- `07_final_review4/` contains the five canonical files
+- No files outside the allowed structure (or flag them)
+
+Run it as a pre-commit hook or as a librarian step before merging.
+
+**4. Front-matter or simple convention for creativity**
+Allow agents full freedom *inside* their domain folder. Require only a small YAML front-matter block at the top of every deliverable:
+```yaml
+---
+agent: folderframework-v4
+domain: GHACTIONS
+phase: 1
+status: done
+evidence:
+  - path: ...
+  - sha: ...
+---
+```
+Everything after that can be free-form. This gives machines a hook while leaving prose unconstrained.
+
+**5. Naming and discovery rules**
+- Worktree naming: `wt-<domain>-<short-id>` (e.g. `wt-gha-v4`)
+- Librarian `collect` should accept a list of worktree paths or a glob.
+- Always write an `INDEX.md` after collection so humans and later agents can see what exists.
+
+**6. Phase gates as checklists, not bureaucracy**
+Put a short checklist in `00_CHARTER.md` (v3 already has a good one). Agents must tick it (or the synthesizer rejects the file) before a phase is considered complete. This is enough to keep quality high without micromanaging content.
+
+**7. Generic domain handling**
+Change the hard-coded lists to a config file (`swarm_config.yaml`) or command-line argument. CROSSCUTTING becomes the escape hatch for anything that doesn’t fit.
+
+### Recommended Immediate Fixes
+
+1. Declare `folderframework-v3` + its `swarm_librarian.py` as the canonical template.
+2. Add the `validate` and `--domains` features to the librarian.
+3. Write a one-page `AGENT_PROMPT.md` that every future agent must receive.
+4. Move `v4`’s excellent GHACTIONS work into a proper dated SWARM structure so it matches the others.
+5. Add a simple front-matter requirement.
+
+The agents got the hard part right (isolation, phased review, evidence linking, human gate). The remaining work is mostly about making the structure *enforceable* and *generic* so later agents stop inventing their own layouts. Once the librarian + prompt contract are in place, consistency rises sharply while creativity inside each domain stays intact.
