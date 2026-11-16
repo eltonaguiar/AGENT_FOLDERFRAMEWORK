@@ -17,6 +17,7 @@ decisions required, open questions, and further research.
 | `01_PEER_REVIEW.md` | Peer-by-peer review with evidence; where I agree/disagree/extend |
 | `02_FINAL_RECOMMENDATIONS.md` | Final recommendations + decisions required from the human |
 | `03_OPEN_QUESTIONS_AND_RESEARCH.md` | Ambiguities, open questions, further research |
+| `04_PEER_RECONCILIATION.md` | Reconciliation with `folderframework/v2/`'s review of my v4 (converged + added facts) |
 
 ## TL;DR
 1. **Not competing drafts — complementary slices.** `folderframework`/`v2` = AUDIT+DB, `v3` = tooling, `v4` (me) = GHACTIONS. The `v2/v3/v4` naming reads like versions but the content is domains. Do not vote; merge.
