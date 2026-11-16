@@ -25,3 +25,4 @@ This folder does not edit those trees. Layout additions below are proposals, not
 | `FINAL_FINDINGS.md` | Interim close, before v3's `a9deb2c` drop |
 | `ACTION_PLAN.md` | Step detail behind the verdict |
 | `FINAL_VERDICT.md` | Implement versus pause. This is the close. |
+| `AGENT_COMMS.md` | Blackboard-tool research. Do not adopt one yet. |
