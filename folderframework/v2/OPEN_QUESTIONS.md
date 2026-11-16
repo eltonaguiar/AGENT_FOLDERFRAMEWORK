@@ -8,3 +8,6 @@
 6. Is `dashboard_data.json` absent from this worktree because it is generated on the runner only? It is not at `audit_dashboard/data/dashboard_data.json` in `folderframework`. v3 S4 (no Infinity/NaN) is therefore unverified locally.
 7. v3 S1 says the dashboard shows "0" ghosts. I showed the health file does not say 0. I did not show the page says 0. Those are different claims.
 8. Should IC Analysis and per-tile `n` (v3 AUDIT todo) block the display fixes, or follow them? No agent produced evidence on either.
+9. Does `alpha_engine/live_dashboard.html` exist on the `live_tracker.yml` runner? If yes, `dashboard/generate_dashboard.py` is not the committed page.
+10. Who is the librarian for the next swarm: a named worktree, or whoever runs `validate`? The protocol names the role and does not name the person.
+11. Should `folderframework/v2/` remain a review overlay, or must the next cross-review go in `05_final_reviewv2/`? The user asked for this folder. The layout contract says domain work must not copy it.

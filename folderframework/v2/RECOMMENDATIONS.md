@@ -2,6 +2,13 @@
 
 Order is evidence weight, then reversibility. None of this is applied.
 
+## Do now (structure, before more agents write)
+
+0. Declare `folderframework-v3/2026-11-16-SWARM/` the only swarm shape. Keep using v3's librarian. Add `--domains` and `validate` there. Do not start a third script.
+1. Hand `AGENT_PROMPT.md` to the next agent. Placement is mandatory. Prose inside the domain file is not.
+2. Leave peer trees in place. A librarian may copy v4's GHACTIONS docs into the dated root later, with a source SHA. Do not move them in this commit.
+3. New raw evidence goes in `evidence/<DOMAIN>/`, not inline.
+
 ## Do now (docs and labels only)
 
 1. Keep three artifact trees. Do not squash them.

@@ -13,3 +13,8 @@ A later agent must not pick these by voting.
 | D7 | Delete committed `db_freshness.json` and archive `db-freshness-check.yml`? | A: yes, per v4 Step 7. B: leave until a consumer check is re-run. | B. v4 says no PHP/JS/HTML consumer; I did not re-run that grep. |
 | D8 | Which librarian is canonical? | A: v3 CLI. B: folderframework init-only script. | A for new swarms. |
 | D9 | Dedup `_snapshot_prediction_market_entry` now? | A: after caller trace. B: edit both copies. | A. Copies at `audit_trail/universal_pick_resolver.py:934` and `audit_trail/dashboard_generator.py:5493`. |
+| D10 | Which layout is canonical? | A: v3 dated `YYYY-MM-DD-SWARM/`. B: allow each worktree's current shape. | A. v2's charter folder and v4's flat root are drift. |
+| D11 | Normalize v4 into that root now? | A: librarian copy with source SHA. B: leave v4 flat. | B until a human asks. Copy, do not move. |
+| D12 | Require YAML front-matter? | A: new files only. B: retrofit every peer file. | A. |
+| D13 | Who closes a phase? | A: synthesizer checklist, human only at Phase 5. B: any agent may advance. | A. See `PHASE_GATES.md`. |
+| D14 | Is `generate_dashboard.py` the committed dashboard? | A: yes. B: no, if `alpha_engine/live_dashboard.html` exists, `live_tracker.yml:43-44` overwrites `dashboard/index.html`. | B until that file's presence on the runner is checked. |

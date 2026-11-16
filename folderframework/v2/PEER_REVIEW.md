@@ -22,6 +22,28 @@ Base: AGENT_FOLDERFRAMEWORK `22a0d67`. Source worktree `folderframework` @ `db4c
 - **v4 remediation is not approved work.** Cron stagger across 192 files, deleting `audit_dashboard/data/db_freshness.json`, and renaming sports workflows are proposals. Their own plan says nothing was applied. I do not adopt Phase B/C as decided.
 - **My own first drop was incomplete.** `folderframework/2026-11-16-SWARM/06_final_review3/SYNTHESIS.md` said no peers existed. That was true at `05e6e8b` and false after `22a0d67`. This v2 folder is the correction. I am not rewriting the earlier files.
 
+## Structure gaps (accepted)
+
+The four drops do not share one layout. v2 nested the charter. v3 used the dated SWARM root. v4 and this review overlay skipped it. That will scatter the next swarm. v3's scaffold is the only allowed shape. See `LAYOUT_CONTRACT.md`.
+
+Hard-coded domains are a real limit. `swarm_librarian.py:20` cannot add `FRONTEND` or `SECURITY` without a fork. `--domains` plus `CROSSCUTTING` fixes that. I am not patching v3's file from this worktree.
+
+Nothing enforces placement. `collect` and `index` do not fail a missing `PLAN.md` or a broken evidence link. A `validate` subcommand is the missing gate. Agents will not remember to run `collect` unless the prompt says so. `AGENT_PROMPT.md` is that prompt.
+
+Phase exit is still unspecified in the scaffolds. `PHASE_GATES.md` names who may close each phase. Contradictions stay as separate files.
+
+I do not move v4 into a dated SWARM. That would edit another agent's tree. A librarian copy, with the source SHA, waits on D11.
+
+## v4 reconciliation (accepted, with one caveat)
+
+`folderframework-v4/v2/04_PEER_RECONCILIATION.md` at `86df7cd` matches this review on push-safety, empty v3 templates, no row deletion, and shadow prediction markets.
+
+Their two-dashboard split is corroborated here. `.github/workflows/live_tracker.yml:41` runs `dashboard/generate_dashboard.py`. No workflow references `audit_systems.py` or `enhanced_audit_dashboard.py`.
+
+Caveat they did not state: `live_tracker.yml:43-44` copies `alpha_engine/live_dashboard.html` over `dashboard/index.html` when that file exists. A fix to `generate_dashboard.py` can be overwritten before commit. Confirm the override before calling the generator the live writer.
+
+I still do not treat zero-as-loss in `audit_systems.py:35` as a proven bug. v4 calls it one. It is a definition (D1). The script is not on a workflow, so it does not outrank the live `/audit` labels.
+
 ## Changes to my own plan
 
 1. Split surfaces. Production claims stay on `audit_dashboard/data/db_health.json` and `money_ready_verdict.json`. Local `dashboard/` and `hub/data/` are a second track.

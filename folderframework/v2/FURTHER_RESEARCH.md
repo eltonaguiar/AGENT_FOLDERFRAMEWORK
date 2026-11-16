@@ -11,3 +11,5 @@ Not required to accept the display-only recommendations. Required before any del
 7. **Audit-dashboard runs.** v4 covered fleet push-safety, not whether the latest `audit-dashboard.yml` run deployed these JSON files. Pull ~15 runs before calling deploy broken. A failed run with a later success is skipped, per project constraint.
 8. **IC Analysis and tile `n`.** Still unowned. Do not invent a pass.
 9. **Prediction feeds.** Persistence decision stays closed: shadow, PBO 0.603, no copy trading. Research is limited to whether shown PnL uses contract price.
+10. **Librarian patch, one place.** Add `--domains` and `validate` to `folderframework-v3/tools/swarm/swarm_librarian.py` only. Spec is in `LAYOUT_CONTRACT.md`. Do not implement a second copy here.
+11. **Override path.** On a fresh checkout, check whether `alpha_engine/live_dashboard.html` exists before treating `generate_dashboard.py` as the writer `live_tracker.yml` commits.
