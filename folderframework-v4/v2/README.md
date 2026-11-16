@@ -19,6 +19,7 @@ decisions required, open questions, and further research.
 | `03_OPEN_QUESTIONS_AND_RESEARCH.md` | Ambiguities, open questions, further research |
 | `04_PEER_RECONCILIATION.md` | Reconciliation with `folderframework/v2/`'s review of my v4 (converged + added facts) |
 | `05_FRAMEWORK_STRUCTURE_REVIEW.md` | External meta-review incorporated: structural/generic/enforcement gaps + fixes |
+| `06_FINAL_FINDINGS_ROUND2.md` | **Round-2 capstone**: per-agent status, convergence scorecard, merged decisions (B1–B4/S1–S4), v3 re-check |
 
 ## TL;DR
 1. **Not competing drafts — complementary slices.** `folderframework`/`v2` = AUDIT+DB, `v3` = tooling, `v4` (me) = GHACTIONS. The `v2/v3/v4` naming reads like versions but the content is domains. Do not vote; merge.
@@ -28,3 +29,5 @@ decisions required, open questions, and further research.
 5. **My push-safety findings are a shared prerequisite.** Any peer remediation pushed from a stale clone hits the stale-fork trap I documented (88367 ahead / 15 behind).
 
 6. **Structural consistency is the meta-fix (from the external review).** The four folders use three different layouts (v2 = charter-as-folder, v3 = dated SWARM, v4 = flat). Adopt v3's dated SWARM + `swarm_librarian.py` as canonical, add a `validate` subcommand + `AGENT_PROMPT.md` contract, and migrate v4 (mapping in `05_*`). My v4 is the layout deviant; see D8.
+
+7. **Round 2 is complete for 3 of 4 agents (see `06_*`).** `folderframework`, `-v2`, and `-v4` converged on the same structure + domain conclusions; `folderframework-v3` is still scaffold-only (re-checked, no advance). Top blocker is B2: which dashboard is actually served.
