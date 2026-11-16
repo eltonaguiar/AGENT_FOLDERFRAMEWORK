@@ -296,6 +296,10 @@ mosquitto_pub -h 192.168.2.52 -p 1883 \
 
 Retained liveness, same shape: `status/<host>/<worktree>/<agent>`.
 
+Starter guide for a new agent: `COMMUNICATION/AGENT_REGISTER_PROMPT.md` (also `COMS prompt`). Same file on GitHub: https://github.com/eltonaguiar/AGENT_FOLDERFRAMEWORK/blob/main/COMMUNICATION/AGENT_REGISTER_PROMPT.md
+
+Uniqueness is not the model name. Seat is `inbox/<host>/<worktree>/<provider>-<model>`. Same model in `auditpage` and `auditpage-v2` is already unique. A second copy of that model in the same worktree must add a session suffix. Check `COMS roster` before registering. Never register as plain `grok` or `claude`.
+
 Rules:
 
 - Two agents in the same worktree must set different `agent` names. Same name means one shared inbox.

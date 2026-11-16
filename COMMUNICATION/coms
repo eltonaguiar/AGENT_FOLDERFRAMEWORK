@@ -143,30 +143,35 @@ for obj in sorted(rows.values(), key=lambda o: (o.get("os",""), o.get("host","")
     if repos:
         print(f"{'':<7} repos: {', '.join(repos)}")
     print(f"{'':<7} inbox: {obj.get('inbox','')}")
+    if obj.get("todo"):
+        print(f"{'':<7} todo: {obj.get('todo')}")
+    if obj.get("done"):
+        print(f"{'':<7} done: {obj.get('done')}")
 PY
   rm -f "$tmp"
 }
 
 cmd_register() {
-  local agent=""
+  local agent="" todo="" done=""
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --agent) agent="${2:-}"; shift 2 ;;
+      --todo) todo="${2:-}"; shift 2 ;;
+      --done) done="${2:-}"; shift 2 ;;
       *) echo "unknown arg: $1" >&2; return 2 ;;
     esac
   done
   if [[ -z "$agent" ]]; then
-    echo "usage: COMS register --agent <role>" >&2
-    echo "example: COMS register --agent kilo" >&2
+    echo "usage: COMS register --agent <provider-model> [--todo text] [--done text]" >&2
     return 2
   fi
   identity "$agent"
   mkdir -p "$(dirname "$LOCAL_REG")"
   local repos json
   repos="$(repo_urls)"
-  json="$(python3 - "$AGENT" "$HOST" "$WT" "$INBOX" "$SBUS" "$PATH_NOW" "$repos" <<'PY'
+  json="$(python3 - "$AGENT" "$HOST" "$WT" "$INBOX" "$SBUS" "$PATH_NOW" "$repos" "$todo" "$done" <<'PY'
 import json, sys, datetime
-agent, host, wt, inbox, sbus, path, repos = sys.argv[1:8]
+agent, host, wt, inbox, sbus, path, repos, todo, done = sys.argv[1:10]
 print(json.dumps({
   "agent": agent,
   "host": host,
@@ -176,6 +181,8 @@ print(json.dumps({
   "inbox": inbox,
   "swarmbus_id": sbus,
   "repos": [r for r in repos.split(",") if r],
+  "todo": todo,
+  "done": done,
   "registered_at": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
 }))
 PY

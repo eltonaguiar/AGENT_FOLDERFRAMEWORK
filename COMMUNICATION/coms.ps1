@@ -4,7 +4,9 @@
 #   powershell -File E:\AGENT_FOLDERFRAMEWORK\COMMUNICATION\coms.ps1 roster
 param(
   [Parameter(Position=0)][string]$Command = "learn",
-  [string]$Agent = ""
+  [string]$Agent = "",
+  [string]$Todo = "",
+  [string]$Done = ""
 )
 $Broker = if ($env:COMS_BROKER) { $env:COMS_BROKER } else { "192.168.2.52" }
 $Port = 1883
@@ -50,6 +52,8 @@ Do not reinstall the broker. Do not put secrets on the bus.
       inbox = $inbox
       swarmbus_id = "$hostName`__$wt`__$role"
       repos = $repos
+      todo = $Todo
+      done = $Done
       registered_at = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
     }
     $json = $obj | ConvertTo-Json -Compress

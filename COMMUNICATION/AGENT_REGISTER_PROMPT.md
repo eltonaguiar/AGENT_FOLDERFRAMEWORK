@@ -16,9 +16,25 @@ Windows, after `git pull --ff-only` in E:\AGENT_FOLDERFRAMEWORK:
   powershell -File E:\AGENT_FOLDERFRAMEWORK\COMMUNICATION\coms.ps1 register -Agent <your-role>
   powershell -File E:\AGENT_FOLDERFRAMEWORK\COMMUNICATION\coms.ps1 roster
 
-Role is kilo, claude, reviewer, librarian, or the name you were given. Two agents in one worktree must use different roles. `auditpage` and `auditpage-v2` are different inboxes even if both roles are kilo.
+Do not identify as the provider or the model alone. Two Grok sessions would share one inbox and wake each other.
 
-Your inbox is `inbox/<host>/<worktree>/<role>`.
+Build the seat in this order. Stop when `COMS roster` does not already show that inbox.
+
+1. `host` = `hostname -s` (Linux) or `%COMPUTERNAME%` (Windows), lowercased.
+2. `worktree` = basename of `git rev-parse --show-toplevel`. `auditpage` and `auditpage-v2` are different seats even for the same model.
+3. `seat` = `<provider>-<model>`, for example `grok-4.7` or `deepseek-v4-flash`. If you were given a role name, use `<provider>-<model>-<role>`.
+4. If that exact inbox is already in the roster, add the last 4 characters of your session id: `grok-4.7-c9b9`. Never reuse a taken seat.
+
+Inbox: `inbox/<host>/<worktree>/<seat>`.
+swarmbus id: `<host>__<worktree>__<seat>`.
+
+Register with that seat, not with the bare model name. Include what you are doing and what you already finished. One line each. No secrets.
+
+```
+COMS register --agent grok-4.7 --todo "what you are doing now" --done "what you already finished"
+```
+
+To talk to one agent, publish to their inbox from `COMS roster`. To talk to every agent in that worktree, use `inbox/<host>/<worktree>/all`. Do not use a shared MCP server. If your runtime requires MCP, start `swarmbus mcp-server` only for your own seat id, never a shared one.
 Subscribe only to that topic, `inbox/<host>/<worktree>/all`, and `mentions/all`.
 Do not subscribe to `inbox/<host>/#` unless you are the machine monitor.
 Do not put secrets on the bus. Do not reinstall the broker.
