@@ -232,17 +232,72 @@ EOF
 }
 
 cmd_listen() {
-  local agent="${1:-${COMS_AGENT:-}}"
+  local agent=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --agent) agent="${2:-}"; shift 2 ;;
+      *) agent="$1"; shift ;;
+    esac
+  done
+  agent="${agent:-${COMS_AGENT:-}}"
   if [[ -z "$agent" ]]; then
     echo "usage: COMS listen --agent <role>" >&2
     return 2
   fi
   identity "$agent"
   echo "listening ${INBOX}  (Ctrl-C to stop)"
-  exec mosquitto_sub -h "$BROKER" -p "$PORT" -v \
-    -t "$INBOX" \
+  # A bare `mosquitto_sub` exits on any broker restart or LAN blip, and a dead
+  # listener is indistinguishable from "no messages" — the agent goes deaf with
+  # no error surfaced. Supervise it and reconnect instead.
+  trap 'echo "listener stopped"; exit 0' INT TERM
+  trap '' PIPE
+  while true; do
+    mosquitto_sub -h "$BROKER" -p "$PORT" -v \
+      -t "${INBOX}" \
+      -t "inbox/${HOST}/${WT}/all" \
+      -t "mentions/all" || true
+    echo "listener dropped (broker restart or network) — reconnecting in 5s" >&2
+    sleep 5
+  done
+}
+
+cmd_check() {
+  # Non-blocking inbox read: what is on my topics right now, retained plus
+  # anything already in flight. This is the verb three separate agents asked for
+  # and never got; `listen` alone cannot answer "what arrived while I was away?".
+  local agent="" wait_s=3
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --agent) agent="${2:-}"; shift 2 ;;
+      --wait) wait_s="${2:-3}"; shift 2 ;;
+      *) agent="$1"; shift ;;
+    esac
+  done
+  agent="${agent:-${COMS_AGENT:-}}"
+  if [[ -z "$agent" ]]; then
+    echo "usage: COMS check --agent <role> [--wait <seconds>]" >&2
+    return 2
+  fi
+  identity "$agent"
+  echo "checking ${INBOX} ${wait_s}s window"
+  local tmp
+  tmp="$(mktemp)"
+  # Do NOT pass --no-retained: retained messages are the only thing that
+  # survives while your listener is down, and they are delivered on subscribe.
+  timeout $((wait_s + 2)) mosquitto_sub -h "$BROKER" -p "$PORT" -v -W "$wait_s" \
+    -t "${INBOX}" \
     -t "inbox/${HOST}/${WT}/all" \
-    -t "mentions/all"
+    -t "mentions/all" > "$tmp" 2>/dev/null || true
+  local n
+  n="$(sort -u "$tmp" | sed '/^$/d' | wc -l | tr -d ' ')"
+  sort -u "$tmp" | sed '/^$/d'
+  rm -f "$tmp"
+  if [[ "$n" -eq 0 ]]; then
+    echo "no messages on ${INBOX}, inbox/${HOST}/${WT}/all, mentions/all"
+  else
+    echo "--- ${n} message(s)"
+  fi
+  return 0
 }
 
 refuse_secrets() {
@@ -290,7 +345,10 @@ cmd_send() {
   fi
   printf '%s' "$msg" | refuse_secrets || return 2
   mosquitto_pub -h "$BROKER" -p "$PORT" -t "$topic" -m "$msg"
-  echo "sent ${topic}"
+  # QoS 0 and no -r: the broker accepts this even when nobody is subscribed, so
+  # "sent" is NOT delivery. Say so, and print the topic actually used — slug()
+  # rewrites dots, so addressing the raw folder name publishes into the void.
+  echo "sent ${topic} (qos0, not retained — no delivery guarantee; verify with: COMS check --agent <role> or on the recipient's COMS listen)"
 }
 
 menu() {
@@ -329,6 +387,7 @@ main() {
     learn|help|-h|--help) cmd_learn ;;
     status) cmd_status ;;
     roster|ls|list) cmd_roster ;;
+    check|inbox|read) cmd_check "$@" ;;
     register) cmd_register "$@" ;;
     prompt) cmd_prompt ;;
     listen)
