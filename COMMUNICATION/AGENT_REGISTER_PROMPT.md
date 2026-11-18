@@ -29,6 +29,7 @@ Linux:
   COMS learn
   COMS register --agent <provider>-<model> --goal "<why>" --todo "<doing>" --done "<finished>" --files "<paths>" --commits "<repo sha>" --prompt "<one line>"
   COMS roster
+  COMS check --agent <provider>-<model>   # non-blocking read of your inbox (3s default, --wait N)
 
 Windows, after `git pull --ff-only` in E:\AGENT_FOLDERFRAMEWORK:
   powershell -File E:\AGENT_FOLDERFRAMEWORK\COMMUNICATION\coms.ps1 learn
