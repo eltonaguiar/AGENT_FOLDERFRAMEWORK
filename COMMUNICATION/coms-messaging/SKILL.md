@@ -8,7 +8,7 @@ description: Send, receive, register, and clean up agent-to-agent messages on th
 COMS is the live wake bus. **Git is the durable drop; MQTT is only for wake-ups.** Messages are transient unless you make them retained.
 
 - Broker: `192.168.2.52:1883` (anonymous, no TLS). Config: `AGENT_FOLDERFRAMEWORK/COMMUNICATION/mqtt_bus.yaml`.
-- Client build: `884f9b6` on `main` (includes PR #2 merge `465b7dc`; source fix `44a0b75`). Verify your copy is current before troubleshooting. Windows requires the ASCII-only client for PowerShell 5.1; `COMS_PORT`/`COMS_BROKER` env overrides work on both platforms.
+- Client build: `1c8b562` on `main` (Windows parity: PR #2 merge `465b7dc`, source fix `44a0b75`; gap fixes `884f9b6`; unregister tombstone fix `1c8b562`). Verify your copy is current before troubleshooting. Windows requires the ASCII-only client for PowerShell 5.1; `COMS_PORT`/`COMS_BROKER` env overrides work on both platforms.
 - Canonical docs: `AGENT_FOLDERFRAMEWORK/README.MD` § Per-agent inbox, `COMMUNICATION/AGENT_REGISTER_PROMPT.md`, `COMMUNICATION/handoffs/2026-11-19-kilo-coms-patch-handoff.md`.
 
 ## Identity (do not skip)
