@@ -175,7 +175,7 @@ cmd_register() {
   json="$(python3 - "$AGENT" "$HOST" "$WT" "$INBOX" "$SBUS" "$PATH_NOW" "$repos" "$todo" "$done" "$goal" "$files" "$commits" "$prompt" <<'PY'
 import json, sys, datetime
 agent, host, wt, inbox, sbus, path, repos, todo, done, goal, files, commits, prompt = sys.argv[1:14]
-print(json.dumps({
+obj = {
   "agent": agent,
   "host": host,
   "os": "linux",
@@ -184,14 +184,14 @@ print(json.dumps({
   "inbox": inbox,
   "swarmbus_id": sbus,
   "repos": [r for r in repos.split(",") if r],
-  "goal": goal,
-  "todo": todo,
-  "done": done,
-  "files": files,
-  "commits": commits,
-  "prompt": prompt,
   "registered_at": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-}))
+}
+# B2: only emit a key when its flag was supplied. Emitting all seven keys with
+# empty strings made a short status update silently erase goal/files/commits.
+for k, v in (("goal", goal), ("todo", todo), ("done", done), ("files", files), ("commits", commits), ("prompt", prompt)):
+    if v:
+        obj[k] = v
+print(json.dumps(obj))
 PY
 )"
   printf '%s' "$json" | refuse_secrets || return 2
@@ -310,7 +310,7 @@ pats = [
   (r"\bsk-[A-Za-z0-9]{20,}", "sk-token"),
   (r"\bgh[pousr]_[A-Za-z0-9]{20,}", "github-token"),
   (r"\bxox[baprs]-[A-Za-z0-9-]{10,}", "slack-token"),
-  (r"(?i)(api[_-]?key|secret|password|passwd|token)\s*[:=]\s*\S{8,}", "assigned-secret"),
+  (r"(?i)(?<![?&])(api[_-]?key|secret|password|passwd|token)\s*[:=]\s*\S{8,}", "assigned-secret"),
 ]
 hits = [name for pat, name in pats if re.search(pat, text)]
 if hits:
@@ -337,18 +337,77 @@ cmd_guard() {
   return $hit
 }
 
+resolve_topic() {
+  # slug() rewrites dots, so a folder named findtorontoevents_antigravity.ca
+  # becomes findtorontoevents_antigravity-ca. If a sender passes the literal
+  # folder name, the subscriber (which slugs) never hears it. Resolve the
+  # host/worktree segments of inbox topics so "sent" matches what is subscribed.
+  local t="$1"
+  if [[ "$t" =~ ^inbox/([^/]+)/([^/]+)/(.+)$ ]]; then
+    printf 'inbox/%s/%s/%s' "$(slug "${BASH_REMATCH[1]}")" "$(slug "${BASH_REMATCH[2]}")" "${BASH_REMATCH[3]}"
+  else
+    printf '%s' "$t"
+  fi
+}
+
 cmd_send() {
-  local topic="${1:-}" msg="${2:-}"
+  local topic="" msg="" retain=0
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --retain|-r) retain=1; shift ;;
+      *) if [[ -z "$topic" ]]; then topic="$1"; elif [[ -z "$msg" ]]; then msg="$1"; else msg="$msg $1"; fi; shift ;;
+    esac
+  done
   if [[ -z "$topic" || -z "$msg" ]]; then
-    echo "usage: COMS send <topic> <message>" >&2
+    echo "usage: COMS send [--retain] <topic> <message>" >&2
     return 2
   fi
   printf '%s' "$msg" | refuse_secrets || return 2
-  mosquitto_pub -h "$BROKER" -p "$PORT" -t "$topic" -m "$msg"
-  # QoS 0 and no -r: the broker accepts this even when nobody is subscribed, so
-  # "sent" is NOT delivery. Say so, and print the topic actually used — slug()
-  # rewrites dots, so addressing the raw folder name publishes into the void.
-  echo "sent ${topic} (qos0, not retained — no delivery guarantee; verify with: COMS check --agent <role> or on the recipient's COMS listen)"
+  local resolved
+  resolved="$(resolve_topic "$topic")"
+  local args=(-q 1)
+  [[ $retain -eq 1 ]] && args+=(-r)
+  mosquitto_pub -h "$BROKER" -p "$PORT" "${args[@]}" -t "$resolved" -m "$msg"
+  if [[ "$resolved" != "$topic" ]]; then
+    echo "note: resolved topic ${topic} -> ${resolved} (slug rewrites dots)"
+  fi
+  if [[ $retain -eq 1 ]]; then
+    echo "sent ${resolved} (qos1, retained — a later COMS check will receive it)"
+  else
+    echo "sent ${resolved} (qos1, not retained — no delivery guarantee; verify with: COMS check --agent <role>)"
+  fi
+}
+
+cmd_unregister() {
+  # B8: registry/# is retained and never cleared, and ~/.coms/agents.jsonl is
+  # append-only, so dead seats accumulate forever. Publishing an empty retained
+  # payload clears the broker copy; the local row is dropped by inbox match.
+  local agent=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --agent) agent="${2:-}"; shift 2 ;;
+      *) agent="$1"; shift ;;
+    esac
+  done
+  agent="${agent:-${COMS_AGENT:-}}"
+  if [[ -z "$agent" ]]; then
+    echo "usage: COMS unregister --agent <role>" >&2
+    return 2
+  fi
+  identity "$agent"
+  mosquitto_pub -h "$BROKER" -p "$PORT" -q 1 -r -t "registry/${HOST}/${WT}/${AGENT}" -m ''
+  if [[ -f "$LOCAL_REG" ]]; then
+    python3 - "$LOCAL_REG" "$INBOX" <<'PY'
+import sys
+from pathlib import Path
+p, inbox = Path(sys.argv[1]), sys.argv[2]
+if p.is_file():
+    keep = [l for l in p.read_text(encoding="utf-8", errors="replace").splitlines()
+            if l.strip() and f'"{inbox}"' not in l]
+    p.write_text("\n".join(keep) + ("\n" if keep else ""), encoding="utf-8")
+PY
+  fi
+  echo "unregistered ${INBOX}"
 }
 
 menu() {
@@ -389,6 +448,7 @@ main() {
     roster|ls|list) cmd_roster ;;
     check|inbox|read) cmd_check "$@" ;;
     register) cmd_register "$@" ;;
+    unregister|deregister) cmd_unregister "$@" ;;
     prompt) cmd_prompt ;;
     listen)
       local agent=""

@@ -34,6 +34,15 @@ function Worktree {
   if (-not $top) { $top = (Get-Location).Path }
   return Slug (Split-Path $top -Leaf)
 }
+function Resolve-Topic([string]$t) {
+  # B7: slug() rewrites dots, so a folder named ..._antigravity.ca becomes
+  # ..._antigravity-ca. Resolve the host/worktree segments so "sent" matches
+  # what a subscriber (which slugs) is actually listening on.
+  if ($t -match '^inbox/([^/]+)/([^/]+)/(.+)$') {
+    return "inbox/$(Slug $Matches[1])/$(Slug $Matches[2])/$($Matches[3])"
+  }
+  return $t
+}
 function Publish([string]$T, [string]$M, [switch]$Retain) {
   $r = if ($Retain) { "retain=True" } else { "retain=False" }
   python -c "import sys, paho.mqtt.client as mqtt; c=mqtt.Client(mqtt.CallbackAPIVersion.VERSION2); c.connect(sys.argv[1], int(sys.argv[2]), 60); c.publish(sys.argv[3], sys.argv[4], qos=1, $r).wait_for_publish(10); c.disconnect()" $Broker $Port $T $M
@@ -45,7 +54,7 @@ function Test-Secret([string]$Text) {
     @{ p = "\bsk-[A-Za-z0-9]{20,}"; n = "sk-token" },
     @{ p = "\bgh[pousr]_[A-Za-z0-9]{20,}"; n = "github-token" },
     @{ p = "\bxox[baprs]-[A-Za-z0-9-]{10,}"; n = "slack-token" },
-    @{ p = "(?i)(api[_-]?key|secret|password|passwd|token)\s*[:=]\s*\S{8,}"; n = "assigned-secret" }
+    @{ p = "(?i)(?<![?&])(api[_-]?key|secret|password|passwd|token)\s*[:=]\s*\S{8,}"; n = "assigned-secret" }
   )
   return @($pats | Where-Object { $Text -match $_.p } | ForEach-Object { $_.n })
 }
@@ -106,14 +115,16 @@ Do not reinstall the broker. Do not put secrets on the bus.
       inbox = $inbox
       swarmbus_id = "$hostName`__$wt`__$role"
       repos = $repos
-      goal = $Goal
-      todo = $Todo
-      done = $Done
-      files = $Files
-      commits = $Commits
-      prompt = $Prompt
       registered_at = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
     }
+    # B2: only emit a key when its flag was supplied, so a short status update
+    # does not blank goal/files/commits/prompt/todo/done.
+    if ($Goal)    { $obj.goal    = $Goal }
+    if ($Todo)    { $obj.todo    = $Todo }
+    if ($Done)    { $obj.done    = $Done }
+    if ($Files)   { $obj.files   = $Files }
+    if ($Commits) { $obj.commits = $Commits }
+    if ($Prompt)  { $obj.prompt  = $Prompt }
     $json = $obj | ConvertTo-Json -Compress
     if (-not (Refuse-Secret $json)) { exit 2 }
     New-Item -ItemType Directory -Force -Path (Split-Path $Reg) | Out-Null
@@ -144,8 +155,10 @@ c.loop_start(); time.sleep(2); c.loop_stop(); c.disconnect()
   "send" {
     if (-not $Topic -or -not $Message) { Write-Error "usage: coms.ps1 send <topic> <message>"; exit 2 }
     if (-not (Refuse-Secret $Message)) { exit 2 }
-    Publish $Topic $Message
-    Write-Output "sent $Topic"
+    $resolved = Resolve-Topic $Topic
+    if ($resolved -ne $Topic) { Write-Output "note: resolved topic $Topic -> $resolved (slug rewrites dots)" }
+    Publish $resolved $Message
+    Write-Output "sent $resolved (qos1, not retained — no delivery guarantee; verify with: coms.ps1 check -Agent <role>)"
   }
   "guard" {
     $paths = @(@($Topic, $Message) + $Rest) | Where-Object { $_ }
@@ -163,19 +176,50 @@ c.loop_start(); time.sleep(2); c.loop_stop(); c.disconnect()
     }
     if (-not $hit) { Write-Output "clean" } else { exit 2 }
   }
-  "listen", "check" {
-    $t = if ($Topic) { $Topic } elseif ($Agent) { "inbox/$(HostName)/$(Worktree)/$(Slug $Agent)" } else { Write-Error "usage: coms.ps1 listen -Agent <role>   (or: coms.ps1 listen <topic>)"; exit 2 }
+  "listen" {
+    $t = if ($Topic) { Resolve-Topic $Topic } elseif ($Agent) { Resolve-Topic "inbox/$(HostName)/$(Worktree)/$(Slug $Agent)" } else { Write-Error "usage: coms.ps1 listen -Agent <role>   (or: coms.ps1 listen <topic>)"; exit 2 }
+    Write-Output "listening $t  (Ctrl-C to stop; reconnects on broker blips)"
+    python -c @"
+import time, paho.mqtt.client as mqtt
+while True:
+    try:
+        c = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+        c.on_message = lambda cl, u, msg: print(msg.topic, msg.payload.decode(), flush=True)
+        c.connect('$Broker', $Port, 60)
+        c.subscribe('$t')
+        c.loop_forever()
+    except Exception as e:
+        print('listener dropped:', e, flush=True)
+        time.sleep(5)
+"@
+  }
+  "check" {
+    if (-not $Agent -and -not $Topic) { Write-Error "usage: coms.ps1 check -Agent <role>"; exit 2 }
+    $t = if ($Topic) { Resolve-Topic $Topic } else { Resolve-Topic "inbox/$(HostName)/$(Worktree)/$(Slug $Agent)" }
+    $wait = 3
+    foreach ($r in $Rest) { if ($r -match '^\d+$') { $wait = [int]$r } }
     python -c @"
 import time, paho.mqtt.client as mqtt
 c = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
 c.on_message = lambda cl, u, msg: print(msg.topic, msg.payload.decode())
 c.connect('$Broker', $Port, 60)
 c.subscribe('$t')
-c.loop_start(); time.sleep(8); c.loop_stop(); c.disconnect()
+c.loop_start(); time.sleep($wait); c.loop_stop(); c.disconnect()
 "@
+    Write-Output "checked $t over ${wait}s (retained + in-flight; not a delivery guarantee)"
+  }
+  "unregister" {
+    if (-not $Agent) { Write-Error "unregister -Agent <role> is required"; exit 2 }
+    $hostName = HostName; $wt = Worktree; $role = Slug $Agent
+    Publish "registry/$hostName/$wt/$role" "" -Retain
+    if (Test-Path $Reg) {
+      $keep = Get-Content $Reg | Where-Object { $_ -and ($_ -notmatch [regex]::Escape("inbox/$hostName/$wt/$role")) }
+      Set-Content -Path $Reg -Value $keep
+    }
+    Write-Output "unregistered inbox/$hostName/$wt/$role"
   }
   "prompt" {
     Get-Content -Raw (Join-Path (Split-Path $PSCommandPath) "AGENT_REGISTER_PROMPT.md")
   }
-  default { Write-Output "commands: learn, register -Agent <role> [-Todo .. -Done ..], roster, heartbeat, send <topic> <message>, guard [files], listen [-Agent <role>] / check" }
+  default { Write-Output "commands: learn, register -Agent <role> [-Todo .. -Done ..], roster, heartbeat, send <topic> <message>, guard [files], listen -Agent <role>, check -Agent <role>, unregister -Agent <role>" }
 }
