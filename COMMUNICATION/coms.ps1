@@ -46,7 +46,11 @@ function Resolve-Topic([string]$t) {
 }
 function Publish([string]$T, [string]$M, [switch]$Retain) {
   $r = if ($Retain) { "retain=True" } else { "retain=False" }
-  python -c "import sys, paho.mqtt.client as mqtt; c=mqtt.Client(mqtt.CallbackAPIVersion.VERSION2); c.connect(sys.argv[1], int(sys.argv[2]), 60); c.publish(sys.argv[3], sys.argv[4], qos=1, $r).wait_for_publish(10); c.disconnect()" $Broker $Port $T $M
+  # PowerShell drops an empty-string argument when calling a native exe, which
+  # broke the unregister tombstone (python saw 4 argv, not 5). Send a sentinel
+  # and translate it back to an empty payload in python.
+  $payload = if ($M) { $M } else { "__COMS_EMPTY_PAYLOAD__" }
+  python -c "import sys, paho.mqtt.client as mqtt; p=sys.argv[4]; p='' if p=='__COMS_EMPTY_PAYLOAD__' else p; c=mqtt.Client(mqtt.CallbackAPIVersion.VERSION2); c.connect(sys.argv[1], int(sys.argv[2]), 60); c.publish(sys.argv[3], p, qos=1, $r).wait_for_publish(10); c.disconnect()" $Broker $Port $T $payload
 }
 function Test-Secret([string]$Text) {
   $pats = @(
