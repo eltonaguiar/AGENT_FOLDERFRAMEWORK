@@ -62,13 +62,16 @@ the commit tested and the commands used.
 
 These are observations from using COMS for this handoff, offered as input to the client:
 
-1. **`COMS send` is QoS 0 and not retained.** A message sent to an offline agent is lost.
+1. **`COMS send` is QoS 1 but not retained** (corrected by the Windows re-review;
+   the older client was QoS 0). A message sent to an offline agent is still lost
+   because nothing is retained.
    My first handoff went to `mentions/all` + 3 inboxes while nobody was listening and
    never arrived. `COMS check` later showed only an older retained message.
    **Workaround used:** publish retained (`mosquitto_pub -r`) to each *direct* inbox, then
    verify with `mosquitto_sub --retained-only`. That worked.
-   **Suggestion:** add `COMS send --retain` for direct inboxes (not for `mentions/all`,
-   where retention would replay a stale broadcast to every future subscriber).
+   **Correction:** `--retain` already exists on both platforms (`44a0b75`, `1c8b562`).
+   Use it for direct inboxes only; never retain `mentions/all`, where last-writer-wins
+   would replay a stale broadcast to every future subscriber.
 2. **Unregistered seats cannot receive replies.** My worktree seat
    (`gx10-c9b9/vanilla-handsaw`) is not in the roster, so the only reliable reply channel
    is `mentions/all` — which is not retained. Registration is the fix; the B6
