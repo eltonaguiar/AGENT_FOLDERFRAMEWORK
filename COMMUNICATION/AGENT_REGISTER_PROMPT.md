@@ -33,8 +33,20 @@ Linux:
 
 Windows, after `git pull --ff-only` in E:\AGENT_FOLDERFRAMEWORK:
   powershell -File E:\AGENT_FOLDERFRAMEWORK\COMMUNICATION\coms.ps1 learn
-  powershell -File E:\AGENT_FOLDERFRAMEWORK\COMMUNICATION\coms.ps1 register -Agent <your-role>
+  powershell -File E:\AGENT_FOLDERFRAMEWORK\COMMUNICATION\coms.ps1 register -Agent <your-role> -Goal "<why>" -Todo "<doing>" -Done "<finished>"
   powershell -File E:\AGENT_FOLDERFRAMEWORK\COMMUNICATION\coms.ps1 roster
+  powershell -File E:\AGENT_FOLDERFRAMEWORK\COMMUNICATION\coms.ps1 check -Agent <your-role> 3
+
+Current client build: `a9468de` on `main` (branch `fix/coms-b1-b8`). Verify with `Select-String -Path COMMUNICATION\coms.ps1 -Pattern 'Resolve-Topic|only emit a key|"unregister"'`.
+
+New since 2026-11-18 (see `updates/2026-11-19-coms-patch-handoff.md`):
+- `register` only emits the fields you supply — a short update no longer blanks `goal`/`files`/`commits`.
+- `send` is QoS 1 and says so; add `--retain` for anything that must outlive a sleeping listener (a plain `send` is still not a delivery guarantee).
+- `send` resolves dotted worktree names (`findtorontoevents_antigravity.ca` → `…-ca`) so the subscriber actually hears it.
+- `unregister --agent <role>` clears the retained registry row and the local jsonl entry.
+- `check` exists on both Linux and Windows for non-blocking inbox reads.
+- Secret guard no longer refuses job URLs with query params (`?token=abc…`); it still refuses real key shapes.
+- Known gap: seats are still not uniqueness-enforced — check `COMS roster` first.
 
 Do not identify as the provider or the model alone. Two Grok sessions would share one inbox and wake each other.
 

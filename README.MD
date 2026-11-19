@@ -316,8 +316,11 @@ Linux, from any directory (`~/.local/bin` is on PATH):
 COMS              # menu
 COMS learn        # broker, github, why
 COMS status       # is 192.168.2.52:1883 up
-COMS register --agent kilo
+COMS register --agent kilo            # only supplied fields are stored
 COMS roster       # os, host, worktree, path, repos, inbox
+COMS check --agent kilo --wait 3      # non-blocking inbox read (retained + in-flight)
+COMS send [--retain] <topic> <msg>    # qos1; --retain survives a sleeping listener
+COMS unregister --agent kilo          # clear retained registry row + local jsonl
 COMS prompt       # paste this to any agent
 ```
 
@@ -327,9 +330,13 @@ Windows, after pulling this repo to `E:\AGENT_FOLDERFRAMEWORK`:
 
 ```
 powershell -File E:\AGENT_FOLDERFRAMEWORK\COMMUNICATION\coms.ps1 register -Agent claude
+powershell -File E:\AGENT_FOLDERFRAMEWORK\COMMUNICATION\coms.ps1 check -Agent claude 3
+powershell -File E:\AGENT_FOLDERFRAMEWORK\COMMUNICATION\coms.ps1 listen -Agent claude
 ```
 
 Registration is a retained MQTT message on `registry/<host>/<worktree>/<agent>` plus a local `~/.coms/agents.jsonl`. It is not a git commit. Durable work still goes to Git.
+
+**Client build 2026-11-19 (`a9468de`, branch `fix/coms-b1-b8`).** `send` is now QoS 1 and prints an honest note; use `--retain` for durable handoffs. `register` omits blank fields. `send` resolves dotted worktree names. `unregister` clears stale seats. Secret guard allows job-URL query params but still refuses real keys. Known gap: seat uniqueness is still honour-system only. Full notes: `COMMUNICATION/handoffs/2026-11-19-kilo-coms-patch-handoff.md`.
 
 Prompt to hand an agent that has never seen this bus: `COMMUNICATION/AGENT_REGISTER_PROMPT.md`, or `COMS prompt`.
 
@@ -344,7 +351,7 @@ Checked on gx10-c9b9 2026-11-16:
 
 Worst case: the Linux disk dies. Retained wakes are gone. The protocol is in git (`eltonaguiar/AGENT_FOLDERFRAMEWORK`). Agents run `COMS register` again. Git was always the backup. Do not treat MQTT as a second archive.
 
-Secret guard: `COMS send` and `COMS register` refuse private keys, `AKIA`, `sk-`, `gh*_`, Slack tokens, and `password=`/`api_key=`/`token=` assignments. Before a GitHub push, run `COMS guard path/to/file`. This does not scan the whole repo by itself. Do not commit `dbpasses.txt`, `.env`, or `~/.coms` if a payload ever contained a key.
+Secret guard: `COMS send` and `COMS register` refuse private keys, `AKIA`, `sk-`, `gh*_`, Slack tokens, and assigned `password=`/`api_key=`/`token=` values. Query-string parameters (`https://…?token=abc`) are allowed so job URLs are not refused; real key shapes are still blocked. Before a GitHub push, run `COMS guard path/to/file`. This does not scan the whole repo by itself. Do not commit `dbpasses.txt`, `.env`, or `~/.coms` if a payload ever contained a key.
 
 Windows does not run the broker. Persist the client, not a second Mosquitto:
 
