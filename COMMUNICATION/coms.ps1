@@ -15,6 +15,7 @@ param(
   [string]$Files = "",
   [string]$Commits = "",
   [string]$Prompt = "",
+  [switch]$Retain,
   [Parameter(Position=1)][string]$Topic = "",
   [Parameter(Position=2)][string]$Message = "",
   [Parameter(ValueFromRemainingArguments=$true)][string[]]$Rest = @()
@@ -90,7 +91,7 @@ if ($Command -eq "register" -and $Rest.Count -gt 0) {
 switch ($Command) {
   "learn" {
 @"
-COMS — live wake bus. Git is the filing cabinet. MQTT is the intercom.
+COMS - live wake bus. Git is the filing cabinet. MQTT is the intercom.
 Broker: ${Broker}:${Port} anonymous. Repo: https://github.com/eltonaguiar/AGENT_FOLDERFRAMEWORK
 Inbox: inbox/<host>/<worktree>/<agent>
 This folder: inbox/$(HostName)/$(Worktree)/<agent>
@@ -153,12 +154,17 @@ c.loop_start(); time.sleep(2); c.loop_stop(); c.disconnect()
     Write-Output $line
   }
   "send" {
-    if (-not $Topic -or -not $Message) { Write-Error "usage: coms.ps1 send <topic> <message>"; exit 2 }
+    if (-not $Topic -or -not $Message) { Write-Error "usage: coms.ps1 send <topic> <message> [--retain]"; exit 2 }
     if (-not (Refuse-Secret $Message)) { exit 2 }
     $resolved = Resolve-Topic $Topic
     if ($resolved -ne $Topic) { Write-Output "note: resolved topic $Topic -> $resolved (slug rewrites dots)" }
-    Publish $resolved $Message
-    Write-Output "sent $resolved (qos1, not retained — no delivery guarantee; verify with: coms.ps1 check -Agent <role>)"
+    $retainOn = $Retain.IsPresent -or (@($Rest) -contains '--retain') -or (@($Rest) -contains '-retain')
+    Publish $resolved $Message -Retain:$retainOn
+    if ($retainOn) {
+      Write-Output "sent $resolved (qos1, retained - survives until a listener attaches)"
+    } else {
+      Write-Output "sent $resolved (qos1, not retained - no delivery guarantee; verify with: coms.ps1 check -Agent <role>)"
+    }
   }
   "guard" {
     $paths = @(@($Topic, $Message) + $Rest) | Where-Object { $_ }
@@ -177,8 +183,15 @@ c.loop_start(); time.sleep(2); c.loop_stop(); c.disconnect()
     if (-not $hit) { Write-Output "clean" } else { exit 2 }
   }
   "listen" {
-    $t = if ($Topic) { Resolve-Topic $Topic } elseif ($Agent) { Resolve-Topic "inbox/$(HostName)/$(Worktree)/$(Slug $Agent)" } else { Write-Error "usage: coms.ps1 listen -Agent <role>   (or: coms.ps1 listen <topic>)"; exit 2 }
-    Write-Output "listening $t  (Ctrl-C to stop; reconnects on broker blips)"
+    if (-not $Topic -and -not $Agent) { Write-Error "usage: coms.ps1 listen -Agent <role>   (or: coms.ps1 listen <topic>)"; exit 2 }
+    $hn = HostName; $wt = Worktree
+    $topics = if ($Topic) { @((Resolve-Topic $Topic)) } else { @(
+        (Resolve-Topic "inbox/$hn/$wt/$(Slug $Agent)"),
+        "inbox/$hn/$wt/all",
+        "mentions/all"
+      ) }
+    Write-Output ("listening " + ($topics -join ", ") + "  (Ctrl-C to stop; reconnects on broker blips)")
+    $subs = ($topics | ForEach-Object { "        c.subscribe('$_')" }) -join "`n"
     python -c @"
 import time, paho.mqtt.client as mqtt
 while True:
@@ -186,7 +199,7 @@ while True:
         c = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
         c.on_message = lambda cl, u, msg: print(msg.topic, msg.payload.decode(), flush=True)
         c.connect('$Broker', $Port, 60)
-        c.subscribe('$t')
+$subs
         c.loop_forever()
     except Exception as e:
         print('listener dropped:', e, flush=True)
@@ -194,19 +207,35 @@ while True:
 "@
   }
   "check" {
-    if (-not $Agent -and -not $Topic) { Write-Error "usage: coms.ps1 check -Agent <role>"; exit 2 }
-    $t = if ($Topic) { Resolve-Topic $Topic } else { Resolve-Topic "inbox/$(HostName)/$(Worktree)/$(Slug $Agent)" }
+    if (-not $Agent -and -not $Topic) { Write-Error "usage: coms.ps1 check -Agent <role> [--wait N]"; exit 2 }
     $wait = 3
-    foreach ($r in $Rest) { if ($r -match '^\d+$') { $wait = [int]$r } }
+    $i = 0
+    while ($i -lt $Rest.Count) {
+      if ($Rest[$i] -eq '--wait' -and ($i + 1) -lt $Rest.Count -and $Rest[$i + 1] -match '^\d+$') {
+        $wait = [int]$Rest[$i + 1]; $i += 2
+      } elseif ($Rest[$i] -match '^\d+$') {
+        $wait = [int]$Rest[$i]; $i++
+      } else { $i++ }
+    }
+    # tolerate `check -Agent role 3` where the bare number binds to Topic
+    if ($Agent -and $Topic -match '^\d+$') { $wait = [int]$Topic; $Topic = "" }
+    $hn = HostName; $wt = Worktree
+    $topics = if ($Topic) { @((Resolve-Topic $Topic)) } else { @(
+        (Resolve-Topic "inbox/$hn/$wt/$(Slug $Agent)"),
+        "inbox/$hn/$wt/all",
+        "mentions/all"
+      ) }
+    Write-Output ("checking " + ($topics -join ", ") + " for ${wait}s")
+    $subs = ($topics | ForEach-Object { "c.subscribe('$_')" }) -join "`n"
     python -c @"
 import time, paho.mqtt.client as mqtt
 c = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
-c.on_message = lambda cl, u, msg: print(msg.topic, msg.payload.decode())
+c.on_message = lambda cl, u, msg: print(msg.topic, msg.payload.decode(), flush=True)
 c.connect('$Broker', $Port, 60)
-c.subscribe('$t')
+$subs
 c.loop_start(); time.sleep($wait); c.loop_stop(); c.disconnect()
 "@
-    Write-Output "checked $t over ${wait}s (retained + in-flight; not a delivery guarantee)"
+    Write-Output ("checked " + ($topics -join ", ") + " over ${wait}s (retained + in-flight; not a delivery guarantee)")
   }
   "unregister" {
     if (-not $Agent) { Write-Error "unregister -Agent <role> is required"; exit 2 }
