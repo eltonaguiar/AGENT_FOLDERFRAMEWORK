@@ -113,8 +113,18 @@ def take(obj):
     if not key:
         return
     prev = rows.get(key)
-    if not prev or str(obj.get("registered_at","")) >= str(prev.get("registered_at","")):
+    if not prev:
         rows[key] = obj
+        return
+    # B2 residual fix: register now omits blank fields, so merge instead of
+    # replacing — a short update must not erase goal/files/commits from roster.
+    merged = dict(prev)
+    for k, v in obj.items():
+        if v not in (None, ""):
+            merged[k] = v
+    if str(obj.get("registered_at", "")) > str(prev.get("registered_at", "")):
+        merged["registered_at"] = obj.get("registered_at")
+    rows[key] = merged
 if local.is_file():
     for line in local.read_text(encoding="utf-8", errors="replace").splitlines():
         line=line.strip()
@@ -195,6 +205,13 @@ print(json.dumps(obj))
 PY
 )"
   printf '%s' "$json" | refuse_secrets || return 2
+  # B6: the broker does not enforce unique seats. Warn loudly when this inbox is
+  # already taken so two agents do not silently share one wake topic.
+  local prior
+  prior="$(timeout 3 mosquitto_sub -h "$BROKER" -p "$PORT" -t "registry/${HOST}/${WT}/${AGENT}" --retained-only -W 2 2>/dev/null | head -n1)"
+  if [[ -n "$prior" ]]; then
+    echo "warning: ${INBOX} is already registered (duplicate seat); use a session suffix or COMS unregister --agent ${AGENT}" >&2
+  fi
   printf '%s\n' "$json" >> "$LOCAL_REG"
   mosquitto_pub -h "$BROKER" -p "$PORT" -t "registry/${HOST}/${WT}/${AGENT}" -r -m "$json"
   echo "registered ${INBOX}"
@@ -273,6 +290,12 @@ cmd_check() {
       *) agent="$1"; shift ;;
     esac
   done
+  # `--wait abc` used to reach arithmetic and die with an unbound-variable error;
+  # validate so the failure is a clean usage message instead of a stack trace.
+  if ! [[ "$wait_s" =~ ^[0-9]+$ ]]; then
+    echo "usage: COMS check --agent <role> [--wait <seconds>]  (--wait must be a non-negative integer)" >&2
+    return 2
+  fi
   agent="${agent:-${COMS_AGENT:-}}"
   if [[ -z "$agent" ]]; then
     echo "usage: COMS check --agent <role> [--wait <seconds>]" >&2
@@ -367,7 +390,10 @@ cmd_send() {
   resolved="$(resolve_topic "$topic")"
   local args=(-q 1)
   [[ $retain -eq 1 ]] && args+=(-r)
-  mosquitto_pub -h "$BROKER" -p "$PORT" "${args[@]}" -t "$resolved" -m "$msg"
+  if ! mosquitto_pub -h "$BROKER" -p "$PORT" "${args[@]}" -t "$resolved" -m "$msg" 2>/dev/null; then
+    echo "ERROR: publish to ${resolved} failed (broker ${BROKER}:${PORT} unreachable?) — message NOT sent" >&2
+    return 1
+  fi
   if [[ "$resolved" != "$topic" ]]; then
     echo "note: resolved topic ${topic} -> ${resolved} (slug rewrites dots)"
   fi
@@ -376,6 +402,7 @@ cmd_send() {
   else
     echo "sent ${resolved} (qos1, not retained — no delivery guarantee; verify with: COMS check --agent <role>)"
   fi
+  return 0
 }
 
 cmd_unregister() {

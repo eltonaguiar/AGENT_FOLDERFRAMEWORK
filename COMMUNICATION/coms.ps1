@@ -21,7 +21,7 @@ param(
   [Parameter(ValueFromRemainingArguments=$true)][string[]]$Rest = @()
 )
 $Broker = if ($env:COMS_BROKER) { $env:COMS_BROKER } else { "192.168.2.52" }
-$Port = 1883
+$Port = if ($env:COMS_PORT) { [int]$env:COMS_PORT } else { 1883 }
 $Reg = Join-Path $env:USERPROFILE ".coms\agents.jsonl"
 
 function Slug([string]$s) {
@@ -128,6 +128,12 @@ Do not reinstall the broker. Do not put secrets on the bus.
     if ($Prompt)  { $obj.prompt  = $Prompt }
     $json = $obj | ConvertTo-Json -Compress
     if (-not (Refuse-Secret $json)) { exit 2 }
+    # B6: the broker does not enforce unique seats. Warn loudly when this inbox
+    # is already taken so two agents do not silently share one wake topic.
+    if (Test-Path $Reg) {
+      $existing = Get-Content $Reg | Where-Object { $_ -and ($_ -match ('"' + [regex]::Escape($inbox) + '"')) } | Select-Object -Last 1
+      if ($existing) { Write-Warning "seat $inbox is already registered (duplicate seat); add a session suffix or run unregister" }
+    }
     New-Item -ItemType Directory -Force -Path (Split-Path $Reg) | Out-Null
     Add-Content -Path $Reg -Value $json
     Publish "registry/$hostName/$wt/$role" $json -Retain
@@ -155,11 +161,23 @@ c.loop_start(); time.sleep(2); c.loop_stop(); c.disconnect()
   }
   "send" {
     if (-not $Topic -or -not $Message) { Write-Error "usage: coms.ps1 send <topic> <message> [--retain]"; exit 2 }
+    # Join extra positional words so `send <topic> hello world` keeps its spaces
+    # (parity with Linux). Retain flags are extracted, not treated as message text.
+    $retainOn = $Retain.IsPresent
+    $words = @()
+    foreach ($r in $Rest) {
+      if ($r -eq '--retain' -or $r -eq '-retain' -or $r -eq '-Retain') { $retainOn = $true }
+      else { $words += $r }
+    }
+    if ($words.Count -gt 0) { $Message = (@($Message) + $words) -join ' ' }
     if (-not (Refuse-Secret $Message)) { exit 2 }
     $resolved = Resolve-Topic $Topic
     if ($resolved -ne $Topic) { Write-Output "note: resolved topic $Topic -> $resolved (slug rewrites dots)" }
-    $retainOn = $Retain.IsPresent -or (@($Rest) -contains '--retain') -or (@($Rest) -contains '-retain')
     Publish $resolved $Message -Retain:$retainOn
+    if ($LASTEXITCODE -ne 0) {
+      Write-Error "publish to $resolved failed (broker ${Broker}:${Port} unreachable?) - message NOT sent"
+      exit 1
+    }
     if ($retainOn) {
       Write-Output "sent $resolved (qos1, retained - survives until a listener attaches)"
     } else {
@@ -211,8 +229,9 @@ $subs
     $wait = 3
     $i = 0
     while ($i -lt $Rest.Count) {
-      if ($Rest[$i] -eq '--wait' -and ($i + 1) -lt $Rest.Count -and $Rest[$i + 1] -match '^\d+$') {
-        $wait = [int]$Rest[$i + 1]; $i += 2
+      if ($Rest[$i] -eq '--wait') {
+        if (($i + 1) -lt $Rest.Count -and $Rest[$i + 1] -match '^\d+$') { $wait = [int]$Rest[$i + 1]; $i += 2 }
+        else { Write-Error "usage: coms.ps1 check -Agent <role> [--wait N]  (--wait must be a non-negative integer)"; exit 2 }
       } elseif ($Rest[$i] -match '^\d+$') {
         $wait = [int]$Rest[$i]; $i++
       } else { $i++ }
@@ -242,7 +261,7 @@ c.loop_start(); time.sleep($wait); c.loop_stop(); c.disconnect()
     $hostName = HostName; $wt = Worktree; $role = Slug $Agent
     Publish "registry/$hostName/$wt/$role" "" -Retain
     if (Test-Path $Reg) {
-      $keep = Get-Content $Reg | Where-Object { $_ -and ($_ -notmatch [regex]::Escape("inbox/$hostName/$wt/$role")) }
+      $keep = Get-Content $Reg | Where-Object { $_ -and ($_ -notmatch ('"' + [regex]::Escape("inbox/$hostName/$wt/$role") + '"')) }
       Set-Content -Path $Reg -Value $keep
     }
     Write-Output "unregistered inbox/$hostName/$wt/$role"
