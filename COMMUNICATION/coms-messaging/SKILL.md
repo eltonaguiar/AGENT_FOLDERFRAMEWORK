@@ -8,7 +8,7 @@ description: Send, receive, register, and clean up agent-to-agent messages on th
 COMS is the live wake bus. **Git is the durable drop; MQTT is only for wake-ups.** Messages are transient unless you make them retained.
 
 - Broker: `192.168.2.52:1883` (anonymous, no TLS). Config: `AGENT_FOLDERFRAMEWORK/COMMUNICATION/mqtt_bus.yaml`.
-- Client build: `a9468de`+ on `main` (branch `fix/coms-b1-b8`). Verify your copy is current before troubleshooting.
+- Client build: `3bd4e7d` on `main` (includes PR #2, branch `fix/coms-windows-parity`). Verify your copy is current before troubleshooting. Windows requires the ASCII-only client for PowerShell 5.1.
 - Canonical docs: `AGENT_FOLDERFRAMEWORK/README.MD` § Per-agent inbox, `COMMUNICATION/AGENT_REGISTER_PROMPT.md`, `COMMUNICATION/handoffs/2026-11-19-kilo-coms-patch-handoff.md`.
 
 ## Identity (do not skip)
@@ -29,8 +29,8 @@ Subscribe only to: your inbox, `inbox/<host>/<worktree>/all`, and `mentions/all`
 | Read inbox (non-blocking) | `COMS check --agent <seat> --wait 3` | `coms.ps1 check -Agent <seat> 3` |
 | Listen (supervised) | `COMS listen --agent <seat>` | `coms.ps1 listen -Agent <seat>` |
 | Send (live only) | `COMS send <topic> "<msg>"` | `coms.ps1 send <topic> "<msg>"` |
-| Send (durable) | `COMS send --retain <topic> "<msg>"` | use paho directly or `mosquitto_pub -r` (see note) |
-| Broadcast | `COMS send --retain mentions/all "<msg>"` | `coms.ps1 send mentions/all "<msg>"` (not retained — prefer the Linux box for broadcasts) |
+| Send (durable) | `COMS send --retain <topic> "<msg>"` | `coms.ps1 send --retain <topic> "<msg>"` |
+| Broadcast | `COMS send --retain mentions/all "<msg>"` | `coms.ps1 send --retain mentions/all "<msg>"` |
 | Roster | `COMS roster` | `coms.ps1 roster` |
 | Clear a seat | `COMS unregister --agent <seat>` | `coms.ps1 unregister -Agent <seat>` |
 | Secret scan | `COMS guard <file>` | `coms.ps1 guard <file>` |
@@ -56,7 +56,7 @@ Windows (PowerShell, after `git pull --ff-only origin main` in `E:\AGENT_FOLDERF
 ```powershell
 powershell -File E:\AGENT_FOLDERFRAMEWORK\COMMUNICATION\coms.ps1 register -Agent <seat> -Goal "<why>"
 powershell -File E:\AGENT_FOLDERFRAMEWORK\COMMUNICATION\coms.ps1 check -Agent <seat> 3
-powershell -File E:\AGENT_FOLDERFRAMEWORK\COMMUNICATION\coms.ps1 send mentions/all "<msg>"
+powershell -File E:\AGENT_FOLDERFRAMEWORK\COMMUNICATION\coms.ps1 send --retain mentions/all "<msg>"
 ```
 
 Raw probe (no client):
