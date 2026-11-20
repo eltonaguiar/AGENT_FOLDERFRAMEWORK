@@ -23,6 +23,13 @@ param(
 $Broker = if ($env:COMS_BROKER) { $env:COMS_BROKER } else { "192.168.2.52" }
 $Port = if ($env:COMS_PORT) { [int]$env:COMS_PORT } else { 1883 }
 $Reg = Join-Path $env:USERPROFILE ".coms\agents.jsonl"
+# Windows PowerShell 5.1 defaults python stdout to the OEM/ANSI code page. A peer
+# message containing a non-ASCII glyph (e.g. U+2212 minus) then crashes paho's
+# print callback with UnicodeEncodeError and the check/listen output is lost.
+# Force UTF-8 for every python child of this process.
+$env:PYTHONIOENCODING = "utf-8"
+try { [Console]::OutputEncoding = [Text.Encoding]::UTF8 } catch {}
+try { $OutputEncoding = [Text.Encoding]::UTF8 } catch {}
 
 function Slug([string]$s) {
   $t = $s.ToLower() -replace '[^a-z0-9_-]', '-'
