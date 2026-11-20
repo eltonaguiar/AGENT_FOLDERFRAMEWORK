@@ -43,7 +43,9 @@ identity() {
 }
 
 cmd_learn() {
-  cat <<EOF
+  # B1: unquoted heredoc meant backticks in this prose ran as shell commands
+  # ('line 46: check: command not found' on every unknown-command call).
+  cat <<'EOF'
 COMS — live wake bus for agents on any path
 
 Why
@@ -225,7 +227,34 @@ PY
   if [[ -n "$prior" ]]; then
     echo "warning: ${INBOX} is already registered (duplicate seat); use a session suffix or COMS unregister --agent ${AGENT}" >&2
   fi
-  printf '%s\n' "$json" >> "$LOCAL_REG"
+  # B4: append-only grew the roster to 103 rows / 35 distinct seats, so every
+  # "who is alive" answer was ambiguous. Upsert by swarmbus_id instead.
+  python3 - "$LOCAL_REG" "$json" <<'PY'
+import json, pathlib, sys
+p, raw = pathlib.Path(sys.argv[1]), sys.argv[2]
+new = json.loads(raw)
+rows, out, found = [], [], False
+if p.is_file():
+    for line in p.read_text(encoding="utf-8", errors="replace").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            rows.append(json.loads(line))
+        except Exception:
+            continue
+for r in rows:
+    if r.get("swarmbus_id") == new.get("swarmbus_id"):
+        merged = dict(r); merged.update({k: v for k, v in new.items() if v})
+        out.append(merged); found = True
+    else:
+        out.append(r)
+if not found:
+    out.append(new)
+p.parent.mkdir(parents=True, exist_ok=True)
+p.write_text("\n".join(json.dumps(r, separators=(",", ":")) for r in out) + "\n", encoding="utf-8")
+print("roster rows=%d" % len(out))
+PY
   mosquitto_pub -h "$BROKER" -p "$PORT" -t "registry/${HOST}/${WT}/${AGENT}" -r -m "$json"
   echo "registered ${INBOX}"
   echo "$json"
@@ -370,6 +399,12 @@ cmd_topics() {
     echo "usage: COMS topics [<pattern>] [--wait <seconds>]" >&2
     return 2
   fi
+  case "$pat" in
+    *\**)
+      echo "ERROR: '*' is not an MQTT wildcard. Use '+' for one level or '#' for the subtree (e.g. notes/+ or notes/#)." >&2
+      return 2
+      ;;
+  esac
   local tmp rows total
   tmp="$(mktemp)"
   timeout $((wait_s + 2)) mosquitto_sub -h "$BROKER" -p "$PORT" -F '%t|%l' -W "$wait_s" -t "$pat" >"$tmp" 2>/dev/null || true
