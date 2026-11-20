@@ -63,6 +63,19 @@ Inbox
   swarmbus id:       <host>__<worktree>__<agent>
   this folder now:   inbox/$(slug "$(host_name)")/$(slug "$(worktree_name)")/<agent>
 
+Topics (the four shapes)
+  inbox/<host>/<wt>/<agent>   YOUR mailbox. Host-partitioned — another host's
+                              inbox/... is not yours, and you do not hear it.
+  notes/<author>-<subject>-<date>   FULL DOCUMENTS. Retained. 40+ live.
+                              Not covered by `check`'s inbox subscriptions;
+                              `check` lists them by size so you know they exist.
+  registry/<host>/<wt>/<agent>      Who is alive (retained roster).
+  mentions/all, status/#            Broadcast / heartbeat.
+
+  COMS check --agent <role>       your inbox + a notes/# index (--no-notes to skip)
+  COMS topics                     EVERY topic on the bus with payload sizes
+  COMS topics notes/# --wait 4    just the notes, size-ordered
+
 Examples
   inbox/gx10-c9b9/auditpage/kilo
   inbox/gx10-c9b9/auditpage-v2/kilo
@@ -282,11 +295,12 @@ cmd_check() {
   # Non-blocking inbox read: what is on my topics right now, retained plus
   # anything already in flight. This is the verb three separate agents asked for
   # and never got; `listen` alone cannot answer "what arrived while I was away?".
-  local agent="" wait_s=3
+  local agent="" wait_s=3 notes=1
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --agent) agent="${2:-}"; shift 2 ;;
       --wait) wait_s="${2:-3}"; shift 2 ;;
+      --no-notes) notes=0; shift ;;
       *) agent="$1"; shift ;;
     esac
   done
@@ -320,6 +334,59 @@ cmd_check() {
   else
     echo "--- ${n} message(s)"
   fi
+
+  # notes/* carry FULL DOCUMENTS (one was 20,954 B) and are not any of the three
+  # topics above, so they were invisible to every `check` -- an agent could
+  # honestly report "no messages" while 40+ notes were live. Do not dump the
+  # payloads (that would bury the inbox output); list topic + size so the caller
+  # knows they exist and can read one deliberately. Skip with --no-notes.
+  if [[ "$notes" -eq 1 ]]; then
+    local ntmp ncount
+    ntmp="$(mktemp)"
+    timeout 5 mosquitto_sub -h "$BROKER" -p "$PORT" -F '%t|%l' -W 3 -t 'notes/#' >"$ntmp" 2>/dev/null || true
+    ncount="$(sort -u "$ntmp" | sed '/^$/d' | wc -l | tr -d ' ')"
+    if [[ "$ncount" -gt 0 ]]; then
+      echo "--- ${ncount} note(s) on notes/# (payloads NOT shown — read one with:)"
+      echo "      mosquitto_sub -h ${BROKER} -t 'notes/<slug>' -W 2"
+      sort -u "$ntmp" | sed '/^$/d' | awk -F'|' '{printf "    %-66s %7s B\n", $1, $2}'
+    fi
+    rm -f "$ntmp"
+  fi
+  return 0
+}
+
+cmd_topics() {
+  # Full bus inventory: every topic with its payload size, plus a per-prefix
+  # roll-up. `check` covers your inbox; this answers "what else is out there?"
+  # Added because the bus carries ~130 topics while check read 3.
+  local wait_s=6 pat="#"
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --wait) wait_s="${2:-6}"; shift 2 ;;
+      *) pat="$1"; shift ;;
+    esac
+  done
+  if ! [[ "$wait_s" =~ ^[0-9]+$ ]]; then
+    echo "usage: COMS topics [<pattern>] [--wait <seconds>]" >&2
+    return 2
+  fi
+  local tmp rows total
+  tmp="$(mktemp)"
+  timeout $((wait_s + 2)) mosquitto_sub -h "$BROKER" -p "$PORT" -F '%t|%l' -W "$wait_s" -t "$pat" >"$tmp" 2>/dev/null || true
+  rows="$(sort -u "$tmp" | sed '/^$/d')"
+  rm -f "$tmp"
+  total="$(printf '%s\n' "$rows" | sed '/^$/d' | wc -l | tr -d ' ')"
+  if [[ "$total" -eq 0 ]]; then
+    echo "no retained/in-flight topics matching '${pat}' in ${wait_s}s"
+    return 0
+  fi
+  echo "${total} topic(s) matching '${pat}' on ${BROKER}:${PORT}"
+  printf '%s\n' "$rows" | awk -F'|' '
+    { p=$1; sub(/\/.*/,"",p); n[p]++; b[p]+=$2+0 }
+    END { for (k in n) printf "  %-12s %4d topic(s) %9d B\n", k, n[k], b[k] }
+  ' | sort
+  echo
+  printf '%s\n' "$rows" | awk -F'|' '{ printf "  %-70s %8s B\n", $1, ($2+0>0 ? $2 : "empty") }'
   return 0
 }
 
@@ -446,6 +513,7 @@ COMS_MENU  broker ${BROKER}:${PORT}
   4 register  COMS register --agent <role>   (run inside that agent's folder)
   5 prompt    text to paste to any Linux or Windows agent
   6 listen    COMS listen --agent <role>
+  7 topics    list EVERY topic on the bus with payload sizes
   q quit
 EOF
   if [[ ! -t 0 ]]; then
@@ -460,6 +528,7 @@ EOF
     4|register) echo "run: COMS register --agent <role>" ;;
     5|prompt) cmd_prompt ;;
     6|listen) echo "run: COMS listen --agent <role>" ;;
+    7|topics) cmd_topics ;;
     q|Q|"") ;;
     *) echo "unknown" ;;
   esac
@@ -474,6 +543,7 @@ main() {
     status) cmd_status ;;
     roster|ls|list) cmd_roster ;;
     check|inbox|read) cmd_check "$@" ;;
+    topics|list-topics|bus) cmd_topics "$@" ;;
     register) cmd_register "$@" ;;
     unregister|deregister) cmd_unregister "$@" ;;
     prompt) cmd_prompt ;;
