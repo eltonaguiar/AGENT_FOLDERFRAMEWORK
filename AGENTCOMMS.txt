@@ -11,29 +11,55 @@ CRITICAL LESSONS (learned 2026-11-20, see MULTI_AGENT_COORDINATION.md sec 5):
    symlink it: ln -s /path/to/AGENT_FOLDERFRAMEWORK/COMMUNICATION/coms ~/.local/bin/coms
 
 2. HOW TO CHECK MESSAGES: use `-W` (time window), NOT `-C` (count).
-   - WRONG:  mosquitto_sub -t 'inbox/#' -C 5     (reads only 5 of 148+ messages)
+   - WRONG:  mosquitto_sub -t 'inbox/#' -C 5     (reads only 5 of 127+ messages)
    - RIGHT:  timeout 15 mosquitto_sub -t '#' -W 8 -F '%t|%l' | sort -u
    - This gives a one-screen map of ALL topics with byte counts.
 
 3. SUBSCRIBE NARROWLY: only your own inbox, inbox/<host>/<worktree>/all, and mentions/all.
    Do NOT use `inbox/#` as a primary channel — it is O(whole-fleet) and truncates.
+   WARNING: inbox/<host>/<worktree>/all is HOST-PARTITIONED. The HOST and WT in
+   the subscription are the READER's own, not the publisher's. A message to
+   inbox/gx10-c9b9/<wt>/all is read only by agents on gx10-c9b9 in that worktree.
+   It does NOT reach the fleet. To reach all hosts, you must publish to each
+   host's inbox/<host>/<worktree>/all separately, or use mentions/all (single slot).
 
-4. TOPICS ARE LAST-WRITER-WINS PER TOPIC: `mentions/all` is a single slot.
-   Two agents writing to the same topic means the second silently replaces the first.
-   Use ONE TOPIC PER NOTE: notes/<slug> topics are never overwritten.
+4. PUBLISH TWICE: (a) full text to notes/<author>-<subject>-<date> (use your own
+   name so no collision), then (b) a 1-2 KB POINTER (non-retained) to
+   inbox/<host>/<worktree>/all naming the notes topic and the exact mosquitto_sub
+   command to read it. Never --retain a payload over another agent's inbox topic;
+   one slot per topic and you will erase their message silently.
+   NOTE: "notes/<slug> topics are never overwritten" is a CONVENTION, not a
+   guarantee. Retention is last-writer-wins PER TOPIC. Two agents choosing the
+   same slug will clobber. Also: coms check does NOT read notes/* — it subscribes
+   to only 3 topics (${INBOX}, inbox/${HOST}/${WT}/all, mentions/all). So publish
+   the pointer to inbox/<host>/<worktree>/all (non-retained) so readers can find it.
 
-5. NOTES/* IS INVISIBLE TO inbox/# READERS: MQTT wildcards match on level boundaries.
-   `inbox/#` never matches `notes/*`, `status/*`, or `mentions/all`.
-   Announce on inbox/-prefixed topics for visibility.
+5. ANNOUNCE SAFELY: announce on inbox/-prefixed topics for visibility, but:
+   - Use NON-RETAINED (plain send, no --retain) for announcements.
+   - Never retain over another agent's inbox/<host>/<worktree>/<agent>.
+   - inbox/<host>/<worktree>/all is HOST-PARTITIONED (see lesson 3).
+   - For cross-host visibility, publish to mentions/all (single slot, last-writer-wins)
+     or to each host's inbox/<host>/<worktree>/all separately.
 
-6. REGISTER FIRST: run COMS register from your worktree before doing anything else.
+6. REGISTER FIRST: run coms register from your worktree before doing anything else.
    Your inbox is inbox/<host>/<worktree>/<agent>. Subscribe only to that topic.
 
-7. RETAINED vs NON-RETAINED: `--retain` persists the message on the broker.
+7. RETAINED vs NON-RETAINED: --retain persists the message on the broker.
    Plain send is QoS 1 but does NOT persist. Use --retain for anything that
    must outlive a sleeping listener. But retain is last-writer-wins per topic.
 
 8. NEVER PUT SECRETS ON THE BUS. The guard refuses common key shapes but is
    a filter, not a guarantee.
 
-Full details: COMMUNICATION/AGENT_REGISTER_PROMPT.md and MULTI_AGENT_COORDINATION.md
+9. VERIFY EVERY SEND. --retain returns 'sent' whether or not the payload survived.
+   Read it back and diff:
+     mosquitto_sub -t <topic> -C 1 -W 10 > /tmp/rb; diff /tmp/msg /tmp/rb
+   Bash expands backticks inside a quoted body and silently truncates the
+   message; 'sent' still prints. I have hit this.
+
+10. TWO WORKTREE SLUGS COEXIST. findtorontoevents_antigravity-ca (underscore
+    survives) and findtorontoevents-antigravity-ca (every non-[a-z0-9_-] becomes -).
+    Same repo, two inbox trees. Read registry/<host>/<worktree>/<agent> — it
+    names the agent's canonical inbox:path — before assuming a peer is unreachable.
+
+Full details: COMMUNICATION/AGENT_REGISTER_PROMPT.md (sec 5 of MULTI_AGENT_COORDINATION.md).
