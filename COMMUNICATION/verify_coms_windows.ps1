@@ -1,4 +1,4 @@
-# verify_coms_windows.ps1 — run on the Windows host to confirm the COMS findings
+﻿# verify_coms_windows.ps1 — run on the Windows host to confirm the COMS findings
 #
 # Written 2026-11-20 by subq (Linux). UNVERIFIED BY ME: there is no pwsh on the
 # Linux host, so I could not execute a single line of this. It is written for
@@ -57,7 +57,7 @@ if (-not (Test-Path $Coms)) { Write-Host "coms.ps1 not found — stopping"; exit
 
 # ------------------------------------------------- 1. check does not crash
 Write-Host "`n=== 1. check (UTF-8 + notes index) ==="
-$out = & $Coms check --agent $Agent 2>&1 | Out-String
+$out = & $Coms check -Agent $Agent 2>&1 | Out-String
 $code = $LASTEXITCODE
 Record "check exit code" $(if ($code -eq 0) { "PASS" } else { "FAIL" }) "exit=$code"
 $nonAscii = ($out.ToCharArray() | Where-Object { [int]$_ -gt 127 }).Count
@@ -70,7 +70,7 @@ if ($out -match "note\(s\) on notes/#") {
 
 # ------------------------------------------------------- 2. topics enumerates
 Write-Host "`n=== 2. topics ==="
-$t = & $Coms topics --wait 3 2>&1 | Out-String
+$t = & $Coms topics '#' --wait 3 2>&1 | Out-String
 Record "topics exit code" $(if ($LASTEXITCODE -eq 0) { "PASS" } else { "FAIL" }) "exit=$LASTEXITCODE"
 $prefixes = @{}
 foreach ($line in ($t -split "`n")) {
@@ -84,7 +84,7 @@ Write-Host "`n=== 3. UTF-8 send ==="
 $utf8T = "status/verify-utf8-$Agent"
 $written += $utf8T
 $probe = "utf8 probe — B ± – é 🚀"
-$sendOut = & $Coms send --retain $utf8T $probe 2>&1 | Out-String
+$sendOut = & $Coms send $utf8T $probe -Retain 2>&1 | Out-String
 Record "send non-ASCII payload" $(if ($sendOut -match "sent") { "PASS" } else { "FAIL" }) $sendOut.Trim()
 if ($hasSub) {
     $back = & mosquitto_sub -h $Broker -p $Port -t $utf8T --retained-only -W 2 2>$null | Out-String
@@ -126,7 +126,7 @@ if (-not ($hasSub -and $hasPub)) {
     $tB = "status/verify-nl-client-$Agent"
     $written += $tB
     $raw = [System.IO.File]::ReadAllText($tmpIn)
-    $clientOut = & $Coms send --retain $tB $raw 2>&1 | Out-String
+    $clientOut = & $Coms send $tB $raw -Retain 2>&1 | Out-String
     Start-Sleep -Milliseconds 500
     $lenB = (& mosquitto_sub -h $Broker -p $Port -t $tB --retained-only -W 2 -F '%l' 2>$null | Select-Object -First 1)
     if ($null -eq $lenB) {
@@ -178,7 +178,7 @@ Write-Host "`n=== 7. retain guard on a foreign inbox ==="
 # not FAIL — a suite that fails on known-open work trains people to ignore it.
 $probeT = "inbox/gx10-c9b9/coms-probe-wt/probe-agent"
 $written += $probeT
-$g = & $Coms send --retain $probeT "guard probe — safe fabricated seat" 2>&1 | Out-String
+$g = & $Coms send $probeT "guard probe — safe fabricated seat" -Retain 2>&1 | Out-String
 $guardExists = ($g -match "refus")
 Record "retain guard on foreign inbox" $(if ($guardExists) { "PASS" } else { "INFO" }) "guard $(if ($guardExists) { 'present' } else { 'ABSENT on this build' }); probe topic will be cleared"
 
@@ -189,7 +189,7 @@ foreach ($topic in $written) { Clear-Topic $topic }
 # ---------------------------------------------------------------- summary
 Write-Host "`n=== summary ==="
 $results | Group-Object Status | ForEach-Object { Write-Host ("{0}: {1}" -f $_.Name, $_.Count) }
-$fail = ($results | Where-Object { $_.Status -eq "FAIL" }).Count
+$fail = @($results | Where-Object { $_.Status -eq "FAIL" }).Count
 Write-Host ""
 if ($fail -gt 0) {
     Write-Host "$fail FAILING test(s):"

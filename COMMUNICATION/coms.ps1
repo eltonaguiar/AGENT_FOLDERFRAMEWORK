@@ -290,7 +290,7 @@ if not hits:
     print('--- no notes/* topics')
 else:
     print(f'--- {len(hits)} note(s) on notes/# ({sum(hits.values())} B) - payloads NOT shown')
-    print("      read one with: mosquitto_sub -h $Broker -t 'notes/<slug>' -W 2")
+    print('      read one with: mosquitto_sub -h $Broker -t notes/<slug> -W 2')
     for t in sorted(hits):
         print(f'    {t:<66} {hits[t]:7d} B')
 "@
