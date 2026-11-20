@@ -125,6 +125,11 @@ jobs:
 
       - name: Verify the Windows client
         shell: pwsh
+        env:
+          # coms.ps1 reads these; without them every client call dials the
+          # production broker at 192.168.2.52, which a runner cannot reach.
+          COMS_BROKER: 127.0.0.1
+          COMS_PORT: "1883"
         run: |
           $log = "verify-windows.log"
           powershell -NoProfile -ExecutionPolicy Bypass -File COMMUNICATION\verify_coms_windows.ps1 `
