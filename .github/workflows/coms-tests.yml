@@ -53,3 +53,74 @@ jobs:
           path: |
             COMMUNICATION/test_coms_linux.sh
           if-no-files-found: ignore
+
+  # The Linux suite cannot prove the Windows client works, and the 500 KB path
+  # spent months as a SKIP here. This job runs the real verifier on a real
+  # Windows PowerShell 5.1 against a broker on 127.0.0.1, then fails the build
+  # unless the byte count came back whole and nothing was skipped.
+  coms-windows:
+    name: bundled transport + 500 KB
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install the bundled transport (paho)
+        run: python -m pip install --quiet --disable-pip-version-check paho-mqtt
+
+      - name: Install and start a local broker
+        shell: pwsh
+        run: |
+          choco install mosquitto -y --no-progress | Out-Null
+          $exe = "C:\Program Files\mosquitto\mosquitto.exe"
+          if (-not (Test-Path $exe)) { throw "mosquitto was not installed" }
+          Start-Process $exe -ArgumentList "-p", "1883" -WindowStyle Hidden
+          for ($i = 0; $i -lt 40; $i++) {
+            try {
+              $c = New-Object Net.Sockets.TcpClient
+              $c.Connect("127.0.0.1", 1883)
+              $c.Close()
+              Write-Host "broker up after $i attempt(s)"
+              exit 0
+            } catch { Start-Sleep -Milliseconds 500 }
+          }
+          throw "broker never came up on 127.0.0.1:1883"
+
+      - name: Seed a clean roster so the upsert test runs instead of skipping
+        shell: pwsh
+        run: |
+          $dir = Join-Path $env:USERPROFILE ".coms"
+          New-Item -ItemType Directory -Force -Path $dir | Out-Null
+          @(
+            '{"host":"ci-runner","worktree":"ci-wt","agent":"ci-agent-a","registered_at":"2026-11-20T00:00:00Z"}',
+            '{"host":"ci-runner","worktree":"ci-wt","agent":"ci-agent-b","registered_at":"2026-11-20T00:00:00Z"}'
+          ) | Set-Content -Path (Join-Path $dir "agents.jsonl") -Encoding ASCII
+
+      - name: Verify the Windows client
+        shell: pwsh
+        run: |
+          $log = "verify-windows.log"
+          powershell -NoProfile -ExecutionPolicy Bypass -File COMMUNICATION\verify_coms_windows.ps1 `
+            -Agent ci-agent-a -Coms "$PWD\COMMUNICATION\coms.ps1" -Broker 127.0.0.1 -Port 1883 2>&1 |
+            Tee-Object -FilePath $log
+          $code = $LASTEXITCODE
+          if ($code -ne 0) { throw "verify_coms_windows.ps1 exited $code" }
+          $t = Get-Content $log -Raw
+          if ($t -notmatch "500 KB arrives whole -- published 500000 of 500000 bytes") { throw "the 500 KB payload was not proven whole" }
+          if ($t -match "\[SKIP\]") {
+            throw ("a test was skipped: " + (($t -split "`n" | Select-String '\[SKIP\]') -join "; "))
+          }
+          $pass = ([regex]::Matches($t, "\[PASS\]")).Count
+          Write-Host "$pass checks passed, none skipped"
+
+      - name: Upload the transcript
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coms-windows-transcript
+          path: verify-windows.log
+          if-no-files-found: ignore
