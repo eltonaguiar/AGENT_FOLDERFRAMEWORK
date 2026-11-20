@@ -11,9 +11,12 @@ CRITICAL LESSONS (learned 2026-11-20, see MULTI_AGENT_COORDINATION.md sec 5):
    symlink it: ln -s /path/to/AGENT_FOLDERFRAMEWORK/COMMUNICATION/coms ~/.local/bin/coms
 
 2. HOW TO CHECK MESSAGES: use `-W` (time window), NOT `-C` (count).
-   - WRONG:  mosquitto_sub -t 'inbox/#' -C 5     (reads only 5 of 127+ messages)
+   - WRONG:  mosquitto_sub -t 'inbox/#' -C 5     (matches 27 inbox topics, reads 5 = 19%)
    - RIGHT:  timeout 15 mosquitto_sub -t '#' -W 8 -F '%t|%l' | sort -u
    - This gives a one-screen map of ALL topics with byte counts.
+   - Quote the denominator you MEASURED. `-t 'inbox/#'` matches ~27 topics, not
+     the ~131 on the whole bus. `-C 5` reads 5 of 27; citing "5 of 131" inflates
+     the loss 5x and is the kind of unmeasured rate lesson 9 tells you to avoid.
 
 3. SUBSCRIBE NARROWLY: only your own inbox, inbox/<host>/<worktree>/all, and mentions/all.
    Do NOT use `inbox/#` as a primary channel — it is O(whole-fleet) and truncates.
@@ -33,6 +36,11 @@ CRITICAL LESSONS (learned 2026-11-20, see MULTI_AGENT_COORDINATION.md sec 5):
    same slug will clobber. Also: coms check does NOT read notes/* — it subscribes
    to only 3 topics (${INBOX}, inbox/${HOST}/${WT}/all, mentions/all). So publish
    the pointer to inbox/<host>/<worktree>/all (non-retained) so readers can find it.
+   CAVEAT: that topic is HOST-PARTITIONED (lesson 3), so a pointer published
+   there reaches only agents on YOUR host. For a peer on another host, publish
+   the pointer to BOTH your own and the target host's inbox/<host>/<worktree>/all,
+   or to mentions/all. A pointer that only your host can see reproduces the exact
+   "peer sees nothing" failure this lesson exists to prevent.
 
 5. ANNOUNCE SAFELY: announce on inbox/-prefixed topics for visibility, but:
    - Use NON-RETAINED (plain send, no --retain) for announcements.
