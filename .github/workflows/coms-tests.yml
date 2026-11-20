@@ -1,4 +1,4 @@
-name: COMS acceptance (Linux)
+name: COMS acceptance
 
 # Every push and every PR. The suite is hermetic: it starts its own mosquitto on
 # 127.0.0.1, uses a throwaway HOME, and clears the topics it writes, so it never
@@ -72,23 +72,46 @@ jobs:
       - name: Install the bundled transport (paho)
         run: python -m pip install --quiet --disable-pip-version-check paho-mqtt
 
-      - name: Install and start a local broker
+      - name: Install and start a broker
         shell: pwsh
         run: |
-          choco install mosquitto -y --no-progress | Out-Null
-          $exe = "C:\Program Files\mosquitto\mosquitto.exe"
-          if (-not (Test-Path $exe)) { throw "mosquitto was not installed" }
-          Start-Process $exe -ArgumentList "-p", "1883" -WindowStyle Hidden
-          for ($i = 0; $i -lt 40; $i++) {
-            try {
-              $c = New-Object Net.Sockets.TcpClient
-              $c.Connect("127.0.0.1", 1883)
-              $c.Close()
-              Write-Host "broker up after $i attempt(s)"
-              exit 0
-            } catch { Start-Sleep -Milliseconds 500 }
+          # `choco install mosquitto` exits 0 but leaves no binary here (measured
+          # 2026-11-20), so use the official installer mosquitto.org publishes and
+          # pick whichever version the index currently offers.
+          $idx = (Invoke-WebRequest -UseBasicParsing "https://mosquitto.org/files/binary/win64/").Content
+          $names = [regex]::Matches($idx, "mosquitto-[0-9.]+-install-windows-x64\.exe") |
+                   ForEach-Object { $_.Value } | Sort-Object -Unique
+          if (-not $names) { throw "no mosquitto installer listed in the win64 index" }
+          $newest = $names |
+                    Sort-Object { [version](($_ -replace "^mosquitto-", "") -replace "-.*$", "") } |
+                    Select-Object -Last 1
+          $url = "https://mosquitto.org/files/binary/win64/$newest"
+          Write-Host "installing $url"
+          $setup = Join-Path $env:TEMP $newest
+          Invoke-WebRequest -UseBasicParsing $url -OutFile $setup
+          Start-Process $setup -ArgumentList "/S" -Wait
+          $broker = "C:\Program Files\mosquitto\mosquitto.exe"
+          if (-not (Test-Path $broker)) {
+            # NSIS versus Inno silent switches; try the other one before giving up.
+            Start-Process $setup -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES" -Wait
           }
-          throw "broker never came up on 127.0.0.1:1883"
+          if (-not (Test-Path $broker)) { throw "mosquitto not found at $broker after install" }
+          function Test-Broker {
+            for ($i = 0; $i -lt 30; $i++) {
+              try {
+                $c = New-Object Net.Sockets.TcpClient
+                $c.Connect("127.0.0.1", 1883)
+                $c.Close()
+                return $true
+              } catch { Start-Sleep -Milliseconds 500 }
+            }
+            return $false
+          }
+          if (-not (Test-Broker)) {
+            Start-Process $broker -ArgumentList "-p", "1883"
+            if (-not (Test-Broker)) { throw "broker never came up on 127.0.0.1:1883" }
+          }
+          Write-Host "broker listening on 127.0.0.1:1883"
 
       - name: Seed a clean roster so the upsert test runs instead of skipping
         shell: pwsh
