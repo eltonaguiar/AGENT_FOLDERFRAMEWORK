@@ -1,0 +1,55 @@
+name: COMS acceptance (Linux)
+
+# Every push and every PR. The suite is hermetic: it starts its own mosquitto on
+# 127.0.0.1, uses a throwaway HOME, and clears the topics it writes, so it never
+# touches the production bus at 192.168.2.52.
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  coms-linux:
+    name: acceptance suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install mosquitto
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq mosquitto mosquitto-clients
+
+      - name: Start a local broker
+        run: |
+          mosquitto -d -p 1883
+          for i in $(seq 1 40); do
+            if (exec 3<>/dev/tcp/127.0.0.1/1883) 2>/dev/null; then
+              echo "broker up after ${i} attempt(s)"
+              exit 0
+            fi
+            sleep 0.5
+          done
+          echo "broker never came up" >&2
+          exit 1
+
+      - name: Syntax check the client
+        run: |
+          bash -n COMMUNICATION/coms
+          python3 -m py_compile COMMUNICATION/dedupe_roster.py
+
+      - name: Acceptance suite
+        env:
+          COMS_BROKER: 127.0.0.1
+          COMS_PORT: "1883"
+        run: bash COMMUNICATION/test_coms_linux.sh
+
+      - name: Upload the transcript
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coms-acceptance-transcript
+          path: |
+            COMMUNICATION/test_coms_linux.sh
+          if-no-files-found: ignore

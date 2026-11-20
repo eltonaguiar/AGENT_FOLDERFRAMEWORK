@@ -476,23 +476,57 @@ resolve_topic() {
 }
 
 cmd_send() {
-  local topic="" msg="" retain=0
+  local topic="" msg="" retain=0 force=0 file=""
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --retain|-r) retain=1; shift ;;
+      --force) force=1; shift ;;
+      # argv cannot carry a large payload: Linux caps one argument at 128 KiB
+      # (MAX_ARG_STRLEN) and Windows cmd.exe at ~8 KiB, so a 500 KB message was
+      # simply unpostable through -m on either platform. --file streams it.
+      --file) file="${2:-}"; shift 2 ;;
       *) if [[ -z "$topic" ]]; then topic="$1"; elif [[ -z "$msg" ]]; then msg="$1"; else msg="$msg $1"; fi; shift ;;
     esac
   done
-  if [[ -z "$topic" || -z "$msg" ]]; then
-    echo "usage: COMS send [--retain] <topic> <message>" >&2
+  if [[ -z "$topic" || ( -z "$msg" && -z "$file" ) ]]; then
+    echo "usage: COMS send [--retain] [--force] [--file <path>] <topic> <message>" >&2
     return 2
   fi
-  printf '%s' "$msg" | refuse_secrets || return 2
+  if [[ -n "$file" ]]; then
+    if [[ ! -f "$file" ]]; then
+      echo "ERROR: no such file: ${file}" >&2
+      return 2
+    fi
+    refuse_secrets < "$file" || return 2
+  else
+    printf '%s' "$msg" | refuse_secrets || return 2
+  fi
   local resolved
   resolved="$(resolve_topic "$topic")"
+  # B3: the retained slot is last-writer-wins, so --retain into a seat you do not
+  # own destroys the previous holder's payload with no history. Measured
+  # 2026-11-20: NEITHER client had this guard (the Windows comment claimed Linux
+  # did). Fail closed; --force when you really own the seat.
+  if [[ $retain -eq 1 && $force -eq 0 && "$resolved" =~ ^inbox/([^/]+)/([^/]+)/(.+)$ ]]; then
+    local t_host="${BASH_REMATCH[1]}" t_wt="${BASH_REMATCH[2]}" t_agent="${BASH_REMATCH[3]}"
+    if [[ "$t_agent" != "all" ]]; then
+      identity ""
+      if [[ "$t_host" != "$HOST" || "$t_wt" != "$WT" || "$t_agent" != "$AGENT" ]]; then
+        echo "refusing to --retain into another seat's inbox (${resolved}); the retained slot is last-writer-wins. Pass --force if you own it." >&2
+        return 2
+      fi
+    fi
+  fi
   local args=(-q 1)
   [[ $retain -eq 1 ]] && args+=(-r)
-  if ! mosquitto_pub -h "$BROKER" -p "$PORT" "${args[@]}" -t "$resolved" -m "$msg" 2>/dev/null; then
+  if [[ -n "$file" ]]; then
+    mosquitto_pub -h "$BROKER" -p "$PORT" "${args[@]}" -t "$resolved" -f "$file" 2>/dev/null
+    local rc=$?
+  else
+    mosquitto_pub -h "$BROKER" -p "$PORT" "${args[@]}" -t "$resolved" -m "$msg" 2>/dev/null
+    local rc=$?
+  fi
+  if [[ $rc -ne 0 ]]; then
     echo "ERROR: publish to ${resolved} failed (broker ${BROKER}:${PORT} unreachable?) — message NOT sent" >&2
     return 1
   fi

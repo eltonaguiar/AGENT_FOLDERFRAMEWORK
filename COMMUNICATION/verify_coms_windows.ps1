@@ -43,9 +43,14 @@ function Record($name, $status, $detail) {
 }
 
 function Clear-Topic($topic) {
+    # Uses the bundled transport when the mosquitto binaries are absent, so a
+    # cleanup never silently does nothing.
     if (Get-Command mosquitto_pub -ErrorAction SilentlyContinue) {
         & mosquitto_pub -h $Broker -p $Port -r -t $topic -m ''
         Write-Host "        cleared $topic"
+    } elseif ($script:hasIo) {
+        Io-Pub $topic "" -Retain | Out-Null
+        Write-Host "        cleared $topic (bundled transport)"
     }
 }
 
@@ -55,7 +60,29 @@ Record "PS version" "INFO" ($PSVersionTable.PSVersion.ToString())
 Record "CLI exists" $(if (Test-Path $Coms) { "PASS" } else { "FAIL" }) $Coms
 $hasSub = $null -ne (Get-Command mosquitto_sub -ErrorAction SilentlyContinue)
 $hasPub = $null -ne (Get-Command mosquitto_pub -ErrorAction SilentlyContinue)
-Record "mosquitto_sub/pub on PATH" $(if ($hasSub -and $hasPub) { "PASS" } else { "SKIP" }) "needed for readback tests"
+Record "mosquitto_sub/pub on PATH" $(if ($hasSub -and $hasPub) { "PASS" } else { "INFO" }) "absent on this host; transport tests use the bundled paho path below"
+
+# ---------------------------------------------- transport (bundled, no SKIPs)
+# Three tests used to be recorded SKIP because the mosquitto binaries are not
+# installed here, which left the 500 KB path never exercised. coms.ps1 already
+# publishes through python + paho, so that is the bundled transport: use it and
+# the transport tests become real. mqtt_io.py lives beside this script.
+$IoScript = Join-Path (Split-Path -Parent $Coms) "mqtt_io.py"
+$hasIo = Test-Path $IoScript
+Record "bundled transport (mqtt_io.py)" $(if ($hasIo) { "PASS" } else { "FAIL" }) $IoScript
+function Io-Pub([string]$T, [string]$M, [string]$Path, [switch]$Retain) {
+    $a = @($IoScript, 'pub', '--broker', $Broker, '--port', "$Port", '--topic', $T)
+    if ($Path) { $a += @('--file', $Path) } else { $a += @('--message', $M) }
+    if ($Retain) { $a += @('--retain') }
+    return (& python @a 2>&1 | Out-String)
+}
+function Io-Sub([string]$T, [int]$WaitSec = 3) {
+    return (& python $IoScript 'sub' '--broker' $Broker '--port' "$Port" '--topic' $T '--wait' "$WaitSec" 2>$null | Out-String)
+}
+function Io-Sub-Len([string]$T, [int]$WaitSec = 3) {
+    $out = & python $IoScript 'sub' '--broker' $Broker '--port' "$Port" '--topic' $T '--wait' "$WaitSec" '--len' 2>$null | Out-String
+    return $out.Trim()
+}
 if (-not (Test-Path $Coms)) { Write-Host "coms.ps1 not found -- stopping"; exit 1 }
 
 # ------------------------------------------------- 1. check does not crash
@@ -89,15 +116,13 @@ $written += $utf8T
 $probe = "utf8 probe " + [char]0x2014 + " B " + [char]0x00B1 + " " + [char]0x2013 + " " + [char]0x00E9 + " " + [char]::ConvertFromUtf32(0x1F680)
 $sendOut = & $Coms send $utf8T $probe -Retain 2>&1 | Out-String
 Record "send non-ASCII payload" $(if ($sendOut -match "sent") { "PASS" } else { "FAIL" }) $sendOut.Trim()
-if ($hasSub) {
-    $back = & mosquitto_sub -h $Broker -p $Port -t $utf8T --retained-only -W 2 2>$null | Out-String
-    Record "UTF-8 survives round trip" $(if ($back.Trim() -eq $probe) { "PASS" } else { "FAIL" }) ("read back: " + $back.Trim())
-}
+$back = Io-Sub $utf8T 2
+Record "UTF-8 survives round trip" $(if ($back.Trim() -eq $probe) { "PASS" } else { "FAIL" }) ("read back: " + $back.Trim())
 
 # ------------------------- 4. trailing newline -- TWO legs (transport, client)
 Write-Host "`n=== 4. trailing newline ==="
-if (-not ($hasSub -and $hasPub)) {
-    Record "trailing newline round trip" "SKIP" "mosquitto tools not on PATH"
+if (-not $hasIo) {
+    Record "trailing newline round trip" "SKIP" "no bundled transport on this host"
 } else {
     $tmpIn = [System.IO.Path]::GetTempFileName()
     $payload = "line-one`n`n"          # ends with TWO newlines
@@ -107,12 +132,9 @@ if (-not ($hasSub -and $hasPub)) {
     # --- leg A: transport (direct pub/sub) -- what rev 1 tested, and all it tested
     $tA = "status/verify-nl-transport-$Agent"
     $written += $tA
-    & mosquitto_pub -h $Broker -p $Port -q 1 -r -t $tA -f $tmpIn
+    Io-Pub $tA "" -Path $tmpIn -Retain | Out-Null
     Start-Sleep -Milliseconds 500
-    $tmpBack = [System.IO.Path]::GetTempFileName()
-    & mosquitto_sub -h $Broker -p $Port -t $tA --retained-only -W 2 > $tmpBack
-    # mosquitto_sub appends one newline; subtract it before comparing
-    $gotA = (Get-Item $tmpBack).Length - 1
+    $gotA = [int](Io-Sub-Len $tA 2)
     Record "transport preserves trailing newline" $(if ($gotA -eq $want) { "PASS" } else { "FAIL" }) "sent $want bytes, read back $gotA"
 
     # --- leg B: the CLIENT path (rev 2). Scope, stated honestly: this leg
@@ -131,28 +153,37 @@ if (-not ($hasSub -and $hasPub)) {
     $raw = [System.IO.File]::ReadAllText($tmpIn)
     $clientOut = & $Coms send $tB $raw -Retain 2>&1 | Out-String
     Start-Sleep -Milliseconds 500
-    $lenB = (& mosquitto_sub -h $Broker -p $Port -t $tB --retained-only -W 2 -F '%l' 2>$null | Select-Object -First 1)
-    if ($null -eq $lenB) {
+    $lenB = Io-Sub-Len $tB 2
+    if ([int]$lenB -lt 0) {
         Record "client preserves trailing newline" "SKIP" "no readback ($($clientOut.Trim()))"
     } else {
         Record "client preserves trailing newline" $(if ([int]$lenB -eq $want) { "PASS" } else { "FAIL" }) "source $want bytes, client published $lenB"
     }
 
-    Remove-Item $tmpIn, $tmpBack -ErrorAction SilentlyContinue
+    # $tmpBack is gone: the bundled transport returns the length as a string, so
+    # there is no readback file to delete (this line bound null and threw).
+    Remove-Item $tmpIn -ErrorAction SilentlyContinue
 }
 
-# -------------------------------------- 5. large payload via -m (argv limit)
-Write-Host "`n=== 5. large payload via -m ==="
-if (-not $hasPub) {
-    Record "500KB via -m" "SKIP" "mosquitto_pub not on PATH"
+# ------------------------------- 5. large payload: 500 KB through the client
+# This used to SKIP because mosquitto_pub was not on PATH, so the 500 KB path had
+# never run here. argv cannot carry 500 KB on Windows (32767-char command line),
+# so `send -File` publishes the bytes through paho and the length is read back.
+Write-Host "`n=== 5. large payload, 500 KB via -File ==="
+if (-not $hasIo) {
+    Record "500 KB via -File" "SKIP" "no bundled transport on this host"
 } else {
-    $big = "B" * 500000
-    $err = & mosquitto_pub -h $Broker -p $Port -q 1 -t "status/verify-big-$Agent" -m $big 2>&1 | Out-String
-    if ($err -match "too long|Argument") {
-        Record "500KB via -m" "INFO" "rejected: $($err.Trim()) -- send should use -f above ~8KB"
-    } else {
-        Record "500KB via -m" "PASS" "accepted on this host (Windows argv limit differs from Linux)"
-    }
+    $bigPath = [System.IO.Path]::GetTempFileName()
+    $big = New-Object byte[] 500000
+    for ($i = 0; $i -lt $big.Length; $i++) { $big[$i] = 0x42 }
+    [System.IO.File]::WriteAllBytes($bigPath, $big)
+    $bigT = "status/verify-big-$Agent"
+    $written += $bigT
+    $sendOut = & $Coms send $bigT -File $bigPath -Retain 2>&1 | Out-String
+    Record "client accepted 500 KB -File" $(if ($sendOut -match 'sent') { "PASS" } else { "FAIL" }) $sendOut.Trim()
+    $gotLen = [int](Io-Sub-Len $bigT 5)
+    Record "500 KB arrives whole" $(if ($gotLen -eq 500000) { "PASS" } else { "FAIL" }) "published $gotLen of 500000 bytes"
+    Remove-Item -LiteralPath $bigPath -ErrorAction SilentlyContinue
 }
 
 # --------------------------------------------- 6. roster duplicates (upsert)

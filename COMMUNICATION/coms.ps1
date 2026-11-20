@@ -19,6 +19,7 @@ param(
   [switch]$Force,
   [string]$WorktreeName = "",
   [switch]$NoNotes,
+  [string]$File = "",
   [Parameter(Position=1)][string]$Topic = "",
   [Parameter(Position=2)][string]$Message = "",
   [Parameter(ValueFromRemainingArguments=$true)][string[]]$Rest = @()
@@ -77,8 +78,15 @@ function Resolve-Topic([string]$t) {
   }
   return $t
 }
-function Publish([string]$T, [string]$M, [switch]$Retain) {
+function Publish([string]$T, [string]$M, [switch]$Retain, [string]$Path) {
   $r = if ($Retain) { "retain=True" } else { "retain=False" }
+  # A large payload cannot cross argv at all: the Win32 command line caps at
+  # 32767 characters, which is why the 500 KB test could only ever SKIP here.
+  # -Path publishes the file's bytes through the same paho transport.
+  if ($Path) {
+    python -c "import sys, pathlib, paho.mqtt.client as mqtt; b=pathlib.Path(sys.argv[4]).read_bytes(); c=mqtt.Client(mqtt.CallbackAPIVersion.VERSION2); c.connect(sys.argv[1], int(sys.argv[2]), 60); c.publish(sys.argv[3], b, qos=1, $r).wait_for_publish(30); c.disconnect()" $Broker $Port $T $Path
+    return
+  }
   # Windows PowerShell 5.1 mangles a string passed to a native exe as argv:
   # embedded double-quotes are stripped and a multi-line payload truncates at the
   # first quoted token. Pass the payload via a temp file so no message content
@@ -229,7 +237,7 @@ c.loop_start(); time.sleep(2); c.loop_stop(); c.disconnect()
     Write-Output $line
   }
   "send" {
-    if (-not $Topic -or -not $Message) { Write-Error "usage: coms.ps1 send <topic> <message> [--retain]"; exit 2 }
+    if (-not $Topic -or (-not $Message -and -not $File)) { Write-Error "usage: coms.ps1 send <topic> <message> [-Retain] [-File <path>]"; exit 2 }
     # Join extra positional words so `send <topic> hello world` keeps its spaces
     # (parity with Linux). Retain flags are extracted, not treated as message text.
     $retainOn = $Retain.IsPresent
@@ -239,12 +247,16 @@ c.loop_start(); time.sleep(2); c.loop_stop(); c.disconnect()
       else { $words += $r }
     }
     if ($words.Count -gt 0) { $Message = (@($Message) + $words) -join ' ' }
-    if (-not (Refuse-Secret $Message)) { exit 2 }
+    if ($File) {
+      if (-not (Test-Path -LiteralPath $File)) { Write-Error "no such file: $File"; exit 2 }
+      if (-not (Refuse-Secret (Get-Content -Raw -LiteralPath $File))) { exit 2 }
+    } elseif (-not (Refuse-Secret $Message)) { exit 2 }
     $resolved = Resolve-Topic $Topic
     if ($resolved -ne $Topic) { Write-Output "note: resolved topic $Topic -> $resolved (slug rewrites dots)" }
-    # B3: Linux refuses to --retain into another seat's inbox; this build did not,
-    # so a Windows send could clobber a peer's retained payload (last-writer-wins,
-    # no history). Fail closed; -Force when you really own the seat.
+    # B3: the retained slot is last-writer-wins, so --retain into a seat you do
+    # not own destroys the previous holder's payload with no history. This comment
+    # used to say Linux refused and only Windows did not; measured 2026-11-20,
+    # NEITHER client had a guard. Both fail closed now; -Force when you own it.
     if ($retainOn -and ($resolved -match '^inbox/([^/]+)/([^/]+)/(.+)$')) {
       $tAg = $Matches[3]; $tHost = $Matches[1]; $tWt = $Matches[2]
       if ($tAg -ne "all") {
@@ -256,7 +268,8 @@ c.loop_start(); time.sleep(2); c.loop_stop(); c.disconnect()
         }
       }
     }
-    Publish $resolved $Message -Retain:$retainOn
+    if ($File) { Publish $resolved "" -Retain:$retainOn -Path $File }
+    else { Publish $resolved $Message -Retain:$retainOn }
     if ($LASTEXITCODE -ne 0) {
       Write-Error "publish to $resolved failed (broker ${Broker}:${Port} unreachable?) - message NOT sent"
       exit 1
