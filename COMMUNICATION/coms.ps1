@@ -16,6 +16,7 @@ param(
   [string]$Commits = "",
   [string]$Prompt = "",
   [switch]$Retain,
+  [switch]$NoNotes,
   [Parameter(Position=1)][string]$Topic = "",
   [Parameter(Position=2)][string]$Message = "",
   [Parameter(ValueFromRemainingArguments=$true)][string[]]$Rest = @()
@@ -245,6 +246,8 @@ $subs
         else { Write-Error "usage: coms.ps1 check -Agent <role> [--wait N]  (--wait must be a non-negative integer)"; exit 2 }
       } elseif ($Rest[$i] -match '^\d+$') {
         $wait = [int]$Rest[$i]; $i++
+      } elseif ($Rest[$i] -eq '--no-notes') {
+        $NoNotes = $true; $i++
       } else { $i++ }
     }
     # tolerate `check -Agent role 3` where the bare number binds to Topic
@@ -266,6 +269,70 @@ $subs
 c.loop_start(); time.sleep($wait); c.loop_stop(); c.disconnect()
 "@
     Write-Output ("checked " + ($topics -join ", ") + " over ${wait}s (retained + in-flight; not a delivery guarantee)")
+
+    # notes/* carry FULL DOCUMENTS on their own topics and are not any of the
+    # three subscribed above, so they were invisible to every check -- an agent
+    # could honestly report "no messages" while 42 notes (~135 KB) were live.
+    # Print an INDEX (topic + size), not the payloads, so the inbox output stays
+    # readable. Suppress with -NoNotes / --no-notes.
+    if (-not $NoNotes) {
+      python -c @"
+import time, paho.mqtt.client as mqtt
+hits = {}
+def on_message(cl, u, msg):
+    hits[msg.topic] = len(msg.payload)
+c = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+c.on_message = on_message
+c.connect('$Broker', $Port, 60)
+c.subscribe('notes/#')
+c.loop_start(); time.sleep(3); c.loop_stop(); c.disconnect()
+if not hits:
+    print('--- no notes/* topics')
+else:
+    print(f'--- {len(hits)} note(s) on notes/# ({sum(hits.values())} B) - payloads NOT shown')
+    print("      read one with: mosquitto_sub -h $Broker -t 'notes/<slug>' -W 2")
+    for t in sorted(hits):
+        print(f'    {t:<66} {hits[t]:7d} B')
+"@
+    }
+  }
+  "topics" {
+    # Full bus inventory. check covers YOUR inbox; this answers "what else?"
+    $pat = if ($Topic) { $Topic } else { "#" }
+    $wait = 6
+    $i = 0
+    while ($i -lt $Rest.Count) {
+      if ($Rest[$i] -eq '--wait' -and ($i + 1) -lt $Rest.Count -and $Rest[$i + 1] -match '^\d+$') { $wait = [int]$Rest[$i + 1]; $i += 2 }
+      else { $i++ }
+    }
+    Write-Output ("topics matching '$pat' on ${Broker}:${Port} over ${wait}s")
+    python -c @"
+import time, paho.mqtt.client as mqtt
+hits = {}
+def on_message(cl, u, msg):
+    hits[msg.topic] = len(msg.payload)
+c = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+c.on_message = on_message
+c.connect('$Broker', $Port, 60)
+c.subscribe('$pat')
+c.loop_start(); time.sleep($wait); c.loop_stop(); c.disconnect()
+if not hits:
+    print('  (no topics matched)')
+else:
+    groups = {}
+    for t, n in hits.items():
+        p = t.split('/')[0]
+        g = groups.setdefault(p, [0, 0])
+        g[0] += 1; g[1] += n
+    print(f'  {len(hits)} topic(s)')
+    for p in sorted(groups):
+        cnt, tot = groups[p]
+        print(f'  {p:<14} {cnt:4d} topic(s) {tot:9d} B')
+    print()
+    for t in sorted(hits):
+        size = (str(hits[t]) + ' B') if hits[t] else 'empty'
+        print(f'  {t:<70} {size:>10}')
+"@
   }
   "unregister" {
     if (-not $Agent) { Write-Error "unregister -Agent <role> is required"; exit 2 }
@@ -280,5 +347,5 @@ c.loop_start(); time.sleep($wait); c.loop_stop(); c.disconnect()
   "prompt" {
     Get-Content -Raw (Join-Path (Split-Path $PSCommandPath) "AGENT_REGISTER_PROMPT.md")
   }
-  default { Write-Output "commands: learn, register -Agent <role> [-Todo .. -Done ..], roster, heartbeat, send <topic> <message>, guard [files], listen -Agent <role>, check -Agent <role>, unregister -Agent <role>" }
+  default { Write-Output "commands: learn, register -Agent <role> [-Todo .. -Done ..], roster, heartbeat, send <topic> <message>, guard [files], listen -Agent <role>, check -Agent <role> [-NoNotes], topics [pattern] [-Wait N], unregister -Agent <role>" }
 }
