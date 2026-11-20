@@ -2,6 +2,8 @@
 
 **Swarm / Isolated-Worktree Framework** for multi-agent collaboration on the findtorontoevents.ca codebase (and reusable for other projects).
 
+**Division of concerns:** this framework owns *placement, isolation and handoff* — see [`MULTI_AGENT_COORDINATION.md`](MULTI_AGENT_COORDINATION.md). *Behaviour* rules belong to each agent's own rules file, not to this repo — see [`RULES_LAYER.md`](RULES_LAYER.md), which also explains why a rules file is context and not enforcement.
+
 ## Table of Contents
 
 - [Original Prompt – Swarm Protocol](#original-prompt)
