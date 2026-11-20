@@ -286,6 +286,8 @@ inbox/<host>/<worktree>/all         # everyone in this subtree
 mentions/all                        # both machines
 ```
 
+**WARNING: `inbox/<host>/<worktree>/all` is HOST-PARTITIONED.** The HOST and WT in the subscription are the READER's own, not the publisher's. A message published to `inbox/gx10-c9b9/<wt>/all` is read only by agents on gx10-c9b9 in that worktree. It does NOT reach the fleet. To reach all hosts, publish to each host's `inbox/<host>/<worktree>/all` separately, or use `mentions/all` (single slot, last-writer-wins).
+
 A subtree lead who must see all four agents in that worktree, and not the other subtree, subscribes to `inbox/<host>/<worktree>/#`. A machine monitor uses `inbox/<host>/#`. Do not use those wide subscriptions for a worker. A wide sub wakes on every sibling message.
 
 Publish to one agent:
@@ -307,6 +309,40 @@ Rules:
 - Two agents in the same worktree must set different `agent` names. Same name means one shared inbox.
 - Git stays the durable drop. The inbox is only the wake. Do not put secrets or full artifacts in the payload.
 - Broker: `192.168.2.52:1883`, anonymous for now. Config file: `COMMUNICATION/mqtt_bus.yaml`.
+
+### Topics and visibility (CRITICAL)
+
+MQTT wildcards match on **level boundaries**, not substrings. `inbox/#` matches topics starting with `inbox/` only. It never matches `notes/*`, `status/*`, `questions/*`, or `mentions/all`.
+
+**Topics are LAST-WRITER-WINS per topic.** `mentions/all` is a single retained slot. Two agents writing to the same topic means the second silently replaces the first. Never share a topic for content you want to keep.
+
+**Recommended publish pattern:**
+1. Publish full text to `notes/<author>-<subject>-<date>` (use your own name so no collision).
+2. Publish a 1-2 KB POINTER (non-retained) to `inbox/<host>/<worktree>/all` naming the notes topic and the exact `mosquitto_sub` command to read it.
+3. Never `--retain` a payload over another agent's `inbox/<host>/<worktree>/<agent>` — one slot per topic, you will erase their message silently.
+
+**"notes/<slug> topics are never overwritten" is a CONVENTION, not a guarantee.** Retention is last-writer-wins per topic. Two agents choosing the same slug will clobber. Also: `coms check` does NOT read `notes/*` — it subscribes to only 3 topics. So publish the pointer to `inbox/<host>/<worktree>/all` (non-retained) so readers can find it.
+
+### How to check messages (CRITICAL)
+
+Use `-W` (time window), NOT `-C` (count):
+
+```
+# WRONG:  mosquitto_sub -t 'inbox/#' -C 5     (reads only 5 of 127+ messages)
+# RIGHT:  timeout 15 mosquitto_sub -t '#' -W 8 -F '%t|%l' | sort -u
+```
+
+`-C 5` stops after 5 messages. With 127+ retained topics, you read 4% of the bus and never see messages from other hosts. `-W 8` reads everything within 8 seconds.
+
+**Verify every send:** `--retain` returns "sent" whether or not the payload survived. Read it back and diff:
+```
+mosquitto_sub -t <topic> -C 1 -W 10 > /tmp/rb; diff /tmp/msg /tmp/rb
+```
+Bash expands backticks inside a quoted body and silently truncates the message; 'sent' still prints.
+
+### Two worktree slugs coexist
+
+`findtorontoevents_antigravity-ca` (underscore survives) and `findtorontoevents-antigravity-ca` (every non-[a-z0-9_-] becomes -). Same repo, two inbox trees. Read `registry/<host>/<worktree>/<agent>` — it names the agent's canonical inbox:path — before assuming a peer is unreachable.
 
 ### COMS command
 
