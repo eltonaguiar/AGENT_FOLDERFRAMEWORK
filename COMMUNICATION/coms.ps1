@@ -16,7 +16,10 @@ param(
   [string]$Commits = "",
   [string]$Prompt = "",
   [switch]$Retain,
+  [switch]$Force,
+  [string]$WorktreeName = "",
   [switch]$NoNotes,
+  [string]$File = "",
   [Parameter(Position=1)][string]$Topic = "",
   [Parameter(Position=2)][string]$Message = "",
   [Parameter(ValueFromRemainingArguments=$true)][string[]]$Rest = @()
@@ -38,10 +41,33 @@ function Slug([string]$s) {
 }
 function HostName { Slug $env:COMPUTERNAME }
 function Worktree {
+  # B2: never trust the current directory alone. Order: explicit -WorktreeName,
+  # then the registry row for this agent on this host, then the git toplevel,
+  # then the cwd. $script:WtSource is recorded so `check` can print it — a seat
+  # derived from a home folder reads an inbox nobody writes to and still exits 0.
+  if ($WorktreeName) { $script:WtSource = "flag"; return (Slug $WorktreeName) }
+  $role = ""
+  if ($Agent) { $role = Slug $Agent }
+  if ($role -and (Test-Path $Reg)) {
+    $cands = @()
+    foreach ($line in (Get-Content $Reg)) {
+      if (-not $line) { continue }
+      try { $row = $line | ConvertFrom-Json } catch { continue }
+      if ($row.agent -eq $role -and $row.host -eq (HostName) -and $row.worktree) { $cands += $row }
+    }
+    if ($cands.Count -ge 1) {
+      $uniq = @($cands | ForEach-Object { $_.worktree } | Sort-Object -Unique)
+      if ($uniq.Count -eq 1) { $script:WtSource = "registry"; return (Slug $uniq[0]) }
+      $script:WtSource = "registry-newest"
+      Write-Warning ("seat " + $role + " is registered under " + ($uniq -join ", ") + "; using the most recent. Pass -WorktreeName to override.")
+      return (Slug $cands[-1].worktree)
+    }
+  }
   $top = ""
   try { $top = (git rev-parse --show-toplevel 2>$null) } catch {}
-  if (-not $top) { $top = (Get-Location).Path }
-  return Slug (Split-Path $top -Leaf)
+  if ($top) { $script:WtSource = "git"; return (Slug (Split-Path $top -Leaf)) }
+  $script:WtSource = "cwd"
+  return (Slug (Split-Path (Get-Location).Path -Leaf))
 }
 function Resolve-Topic([string]$t) {
   # B7: slug() rewrites dots, so a folder named ..._antigravity.ca becomes
@@ -52,8 +78,15 @@ function Resolve-Topic([string]$t) {
   }
   return $t
 }
-function Publish([string]$T, [string]$M, [switch]$Retain) {
+function Publish([string]$T, [string]$M, [switch]$Retain, [string]$Path) {
   $r = if ($Retain) { "retain=True" } else { "retain=False" }
+  # A large payload cannot cross argv at all: the Win32 command line caps at
+  # 32767 characters, which is why the 500 KB test could only ever SKIP here.
+  # -Path publishes the file's bytes through the same paho transport.
+  if ($Path) {
+    python -c "import sys, pathlib, paho.mqtt.client as mqtt; b=pathlib.Path(sys.argv[4]).read_bytes(); c=mqtt.Client(mqtt.CallbackAPIVersion.VERSION2); c.connect(sys.argv[1], int(sys.argv[2]), 60); c.publish(sys.argv[3], b, qos=1, $r).wait_for_publish(30); c.disconnect()" $Broker $Port $T $Path
+    return
+  }
   # Windows PowerShell 5.1 mangles a string passed to a native exe as argv:
   # embedded double-quotes are stripped and a multi-line payload truncates at the
   # first quoted token. Pass the payload via a temp file so no message content
@@ -151,7 +184,35 @@ Do not reinstall the broker. Do not put secrets on the bus.
       if ($existing) { Write-Warning "seat $inbox is already registered (duplicate seat); add a session suffix or run unregister" }
     }
     New-Item -ItemType Directory -Force -Path (Split-Path $Reg) | Out-Null
-    Add-Content -Path $Reg -Value $json
+    # B4: upsert by swarmbus_id. Append-only grew this roster to 29 rows / 11
+    # distinct seats (18 duplicates), so "who is alive" was unanswerable.
+    $env:COMS_REG = $Reg
+    $env:COMS_JSON = $json
+    python -c @"
+import json, os, pathlib
+p = pathlib.Path(os.environ['COMS_REG'])
+new = json.loads(os.environ['COMS_JSON'])
+rows, out, found = [], [], False
+if p.is_file():
+    for line in p.read_text(encoding='utf-8', errors='replace').splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            rows.append(json.loads(line))
+        except Exception:
+            continue
+for r in rows:
+    if r.get('swarmbus_id') == new.get('swarmbus_id'):
+        m = dict(r); m.update({k: v for k, v in new.items() if v}); out.append(m); found = True
+    else:
+        out.append(r)
+if not found:
+    out.append(new)
+p.parent.mkdir(parents=True, exist_ok=True)
+p.write_text('\n'.join(json.dumps(r, separators=(',', ':')) for r in out) + '\n', encoding='utf-8')
+print('roster rows=' + str(len(out)))
+"@
     Publish "registry/$hostName/$wt/$role" $json -Retain
     Write-Output "registered $inbox"
     Write-Output $json
@@ -176,7 +237,7 @@ c.loop_start(); time.sleep(2); c.loop_stop(); c.disconnect()
     Write-Output $line
   }
   "send" {
-    if (-not $Topic -or -not $Message) { Write-Error "usage: coms.ps1 send <topic> <message> [--retain]"; exit 2 }
+    if (-not $Topic -or (-not $Message -and -not $File)) { Write-Error "usage: coms.ps1 send <topic> <message> [-Retain] [-File <path>]"; exit 2 }
     # Join extra positional words so `send <topic> hello world` keeps its spaces
     # (parity with Linux). Retain flags are extracted, not treated as message text.
     $retainOn = $Retain.IsPresent
@@ -186,10 +247,29 @@ c.loop_start(); time.sleep(2); c.loop_stop(); c.disconnect()
       else { $words += $r }
     }
     if ($words.Count -gt 0) { $Message = (@($Message) + $words) -join ' ' }
-    if (-not (Refuse-Secret $Message)) { exit 2 }
+    if ($File) {
+      if (-not (Test-Path -LiteralPath $File)) { Write-Error "no such file: $File"; exit 2 }
+      if (-not (Refuse-Secret (Get-Content -Raw -LiteralPath $File))) { exit 2 }
+    } elseif (-not (Refuse-Secret $Message)) { exit 2 }
     $resolved = Resolve-Topic $Topic
     if ($resolved -ne $Topic) { Write-Output "note: resolved topic $Topic -> $resolved (slug rewrites dots)" }
-    Publish $resolved $Message -Retain:$retainOn
+    # B3: the retained slot is last-writer-wins, so --retain into a seat you do
+    # not own destroys the previous holder's payload with no history. This comment
+    # used to say Linux refused and only Windows did not; measured 2026-11-20,
+    # NEITHER client had a guard. Both fail closed now; -Force when you own it.
+    if ($retainOn -and ($resolved -match '^inbox/([^/]+)/([^/]+)/(.+)$')) {
+      $tAg = $Matches[3]; $tHost = $Matches[1]; $tWt = $Matches[2]
+      if ($tAg -ne "all") {
+        $ownAg = if ($Agent) { Slug $Agent } else { "" }
+        $isOwn = (($tHost -eq (HostName)) -and ($tWt -eq (Worktree)) -and ($tAg -eq $ownAg))
+        if (-not $isOwn -and -not $Force) {
+          Write-Error "refusing to --retain into another seat's inbox ($resolved); the retained slot is last-writer-wins. Pass -Force if you own it."
+          exit 2
+        }
+      }
+    }
+    if ($File) { Publish $resolved "" -Retain:$retainOn -Path $File }
+    else { Publish $resolved $Message -Retain:$retainOn }
     if ($LASTEXITCODE -ne 0) {
       Write-Error "publish to $resolved failed (broker ${Broker}:${Port} unreachable?) - message NOT sent"
       exit 1
@@ -262,7 +342,7 @@ $subs
         "inbox/$hn/$wt/all",
         "mentions/all"
       ) }
-    Write-Output ("checking " + ($topics -join ", ") + " for ${wait}s")
+    Write-Output ("checking " + ($topics -join ", ") + " for ${wait}s [seat source: " + $script:WtSource + "]")
     $subs = ($topics | ForEach-Object { "c.subscribe('$_')" }) -join "`n"
     python -c @"
 import time, paho.mqtt.client as mqtt
