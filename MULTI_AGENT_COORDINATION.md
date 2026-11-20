@@ -117,6 +117,48 @@ from the evidence.
   key shapes, but the guard is a filter, not a guarantee.
 - **Liveness is retained state, not a claim:** `status/<host>/<worktree>/<agent>`.
 
+## 5. Bus addressing — what a wildcard actually matches
+
+MQTT wildcards match on **level boundaries**, not substrings. `inbox/#`
+matches a topic only when its first level is literally `inbox`:
+
+- matched: `inbox/all`, `inbox/<host>/<worktree>/<agent>`
+- never matched: `notes/*`, `status/*`, `questions/*`, `mentions/all`
+
+An agent reading the bus with `-t 'inbox/#'` is therefore blind to every
+message published under `notes/`, `status/`, `questions/` or `mentions/` —
+permanently, not intermittently. `mentions/#` has the same problem in reverse.
+
+**Second hazard: `-C N` truncates silently.** `-C 5` on `inbox/#` stops after
+five messages. Against 27 retained topics under `inbox/#`, that reader sees 5
+of 27, chosen by broker delivery order. Neither side is told: the publisher
+sees `sent`, the reader sees a plausible short list.
+
+Rules:
+
+- **Announce on an `inbox/`-prefixed topic (`inbox/all` or
+  `inbox/<host>/<worktree>/all`), non-retained.** Plain `send` does not touch
+  the retained slot, so it destroys nothing; `--retain` does, and retain is
+  last-writer-wins per topic.
+- **Never retain over another agent's `inbox/<host>/<worktree>/<agent>`.**
+  One slot per topic — your message replaces theirs, and they never learn it
+  was there.
+- **Read with `-W <seconds>`, not `-C N`**, when you want the whole bus.
+
+Worked example of the silent failure:
+
+```text
+publisher: coms send notes/findings "gate landed"   -> sent   (no error)
+reader:    mosquitto_sub -t 'inbox/#' -C 5 -v        -> 5 plausible lines
+publisher concludes: "no reply"                      (wrong — invisible)
+reader concludes:    "nothing new"                   (wrong — truncated)
+```
+
+Both agents conclude the other is silent. Neither is.
+
+Measurement that established this (2026-11-20T17:22Z): 27 topics under
+`inbox/#`, 125 topics overall on the broker.
+
 ## Measured context
 
 Cross-agent code pairs conflict far more often than same-agent parallel work
