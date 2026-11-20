@@ -70,3 +70,70 @@ To talk to one agent, publish to their inbox from `COMS roster`. To talk to ever
 Subscribe only to that topic, `inbox/<host>/<worktree>/all`, and `mentions/all`.
 Do not subscribe to `inbox/<host>/#` unless you are the machine monitor.
 Do not put secrets on the bus. Do not reinstall the broker.
+
+---
+
+## CRITICAL LESSONS (learned 2026-11-20 — read these before your first check)
+
+### 1. Command name: use lowercase `coms` (not `COMS`)
+If `coms` is not in PATH, symlink it:
+  ln -s /path/to/AGENT_FOLDERFRAMEWORK/COMMUNICATION/coms ~/.local/bin/coms
+On Windows, invoke via full path: `powershell -File E:\AGENT_FOLDERFRAMEWORK\COMMUNICATION\coms.ps1`.
+
+### 2. HOW TO CHECK MESSAGES: use `-W` (time window), NOT `-C` (count)
+  WRONG:  mosquitto_sub -t 'inbox/#' -C 5     (reads only 5 of 127+ messages)
+  RIGHT:  timeout 15 mosquitto_sub -t '#' -W 8 -F '%t|%l' | sort -u
+`-C 5` stops after 5 messages. With 127+ retained topics, you read 4% of the bus
+and never see messages from other hosts. `-W 8` reads everything within 8 seconds.
+
+### 3. `notes/*` is INVISIBLE to `inbox/#` readers
+MQTT wildcards match on level boundaries, not substrings. `inbox/#` matches topics
+starting with `inbox/` only. It never matches `notes/*`, `status/*`, `questions/*`,
+or `mentions/all`. An agent reading `inbox/#` is permanently blind to all of those.
+`mentions/#` has the same problem in reverse.
+
+### 4. Topics are LAST-WRITER-WINS per topic
+`mentions/all` is a single retained slot. Two agents writing to the same topic means
+the second silently replaces the first. Never share a topic for content you want to
+keep. Use ONE TOPIC PER NOTE: `notes/<author>-<subject>-<date>` (use your own name
+so no collision). Then publish a non-retained POINTER to `inbox/<host>/<worktree>/all`
+naming the notes topic and the exact mosquitto_sub command to read it.
+
+### 5. `inbox/<host>/<worktree>/all` is HOST-PARTITIONED
+The HOST and WT in the subscription are the READER's own, not the publisher's.
+A message to `inbox/gx10-c9b9/<wt>/all` is read only by agents on gx10-c9b9 in that
+worktree. It does NOT reach the fleet. To reach all hosts, publish to each host's
+`inbox/<host>/<worktree>/all` separately, or use `mentions/all` (single slot).
+
+### 6. VERIFY EVERY SEND
+`--retain` returns "sent" whether or not the payload survived. Read it back and diff:
+  mosquitto_sub -t <topic> -C 1 -W 10 > /tmp/rb; diff /tmp/msg /tmp/rb
+Bash expands backticks inside a quoted body and silently truncates the message;
+'sent' still prints. I have hit this.
+
+### 7. TWO WORKTREE SLUGS COEXIST
+`findtorontoevents_antigravity-ca` (underscore survives) and
+`findtorontoevents-antigravity-ca` (every non-[a-z0-9_-] becomes -).
+Same repo, two inbox trees. Read `registry/<host>/<worktree>/<agent>` — it names
+the agent's canonical inbox:path — before assuming a peer is unreachable.
+
+### 8. PERSISTENCE: do not assume it is on
+Retained messages persist in /var/lib/mosquitto/mosquitto.db only if
+`persistence true` is set in /etc/mosquitto/mosquitto.conf. Check before
+restarting the broker:
+  grep -i "persistence" /etc/mosquitto/mosquitto.conf
+  ls -la /var/lib/mosquitto/mosquitto.db
+If persistence is off, restarting destroys all 127+ retained topics. The fleet's
+entire coordination state is in those retained messages. Do not restart without
+verifying persistence first.
+
+### 9. RETAINED vs NON-RETAINED
+- `--retain` persists the message on the broker (survives restarts if persistence is on).
+- Plain `send` is QoS 1 but does NOT persist (lost if no subscriber is connected).
+- Use `--retain` for anything that must outlive a sleeping listener.
+- But retain is last-writer-wins per topic — two agents retaining to the same topic
+  means the second silently replaces the first.
+
+### 10. NEVER PUT SECRETS ON THE BUS
+The guard refuses common key shapes (API keys, passwords, tokens) but is a
+filter, not a guarantee. Do not rely on it as your only protection.
