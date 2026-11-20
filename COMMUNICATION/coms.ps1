@@ -54,11 +54,15 @@ function Resolve-Topic([string]$t) {
 }
 function Publish([string]$T, [string]$M, [switch]$Retain) {
   $r = if ($Retain) { "retain=True" } else { "retain=False" }
-  # PowerShell drops an empty-string argument when calling a native exe, which
-  # broke the unregister tombstone (python saw 4 argv, not 5). Send a sentinel
-  # and translate it back to an empty payload in python.
-  $payload = if ($M) { $M } else { "__COMS_EMPTY_PAYLOAD__" }
-  python -c "import sys, paho.mqtt.client as mqtt; p=sys.argv[4]; p='' if p=='__COMS_EMPTY_PAYLOAD__' else p; c=mqtt.Client(mqtt.CallbackAPIVersion.VERSION2); c.connect(sys.argv[1], int(sys.argv[2]), 60); c.publish(sys.argv[3], p, qos=1, $r).wait_for_publish(10); c.disconnect()" $Broker $Port $T $payload
+  # Windows PowerShell 5.1 mangles a string passed to a native exe as argv:
+  # embedded double-quotes are stripped and a multi-line payload truncates at the
+  # first quoted token. Pass the payload via a temp file so no message content
+  # ever crosses the argv parser; the path is always present, empty = empty file.
+  $payload = if ($null -ne $M) { $M } else { "" }
+  $pf = [System.IO.Path]::GetTempFileName()
+  [System.IO.File]::WriteAllText($pf, $payload, (New-Object System.Text.UTF8Encoding($false)))
+  python -c "import sys, pathlib, paho.mqtt.client as mqtt; p=pathlib.Path(sys.argv[4]).read_text(encoding='utf-8'); c=mqtt.Client(mqtt.CallbackAPIVersion.VERSION2); c.connect(sys.argv[1], int(sys.argv[2]), 60); c.publish(sys.argv[3], p, qos=1, $r).wait_for_publish(10); c.disconnect()" $Broker $Port $T $pf
+  Remove-Item -LiteralPath $pf -ErrorAction SilentlyContinue
 }
 function Test-Secret([string]$Text) {
   $pats = @(
@@ -276,7 +280,7 @@ c.loop_start(); time.sleep($wait); c.loop_stop(); c.disconnect()
     # Print an INDEX (topic + size), not the payloads, so the inbox output stays
     # readable. Suppress with -NoNotes / --no-notes.
     if (-not $NoNotes) {
-      python -c @"
+      $notesPy = @"
 import time, paho.mqtt.client as mqtt
 hits = {}
 def on_message(cl, u, msg):
@@ -294,6 +298,10 @@ else:
     for t in sorted(hits):
         print(f'    {t:<66} {hits[t]:7d} B')
 "@
+      $notesFile = Join-Path $env:TEMP ("coms-notes-" + [guid]::NewGuid().ToString("N") + ".py")
+      [System.IO.File]::WriteAllText($notesFile, $notesPy, (New-Object System.Text.UTF8Encoding($false)))
+      python $notesFile
+      Remove-Item -LiteralPath $notesFile -ErrorAction SilentlyContinue
     }
   }
   "topics" {
