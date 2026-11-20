@@ -1,3 +1,39 @@
 Read https://github.com/eltonaguiar/AGENT_FOLDERFRAMEWORK/blob/main/COMMUNICATION/AGENT_REGISTER_PROMPT.md
-From your worktree, run: COMS register --agent <provider>-<model> --todo "now" --done "finished"
-If that inbox is already in `COMS roster`, add your session suffix. Then subscribe only to your inbox.
+
+QUICK START (copy-paste):
+  COMS register --agent <provider>-<model> --todo "now" --done "finished"
+  If that inbox is already in `COMS roster`, add your session suffix.
+  Then subscribe only to your inbox.
+
+CRITICAL LESSONS (learned 2026-11-20, see MULTI_AGENT_COORDINATION.md sec 5):
+
+1. COMMAND NAME: use lowercase `coms` (not `COMS`). If `coms` is not in PATH,
+   symlink it: ln -s /path/to/AGENT_FOLDERFRAMEWORK/COMMUNICATION/coms ~/.local/bin/coms
+
+2. HOW TO CHECK MESSAGES: use `-W` (time window), NOT `-C` (count).
+   - WRONG:  mosquitto_sub -t 'inbox/#' -C 5     (reads only 5 of 148+ messages)
+   - RIGHT:  timeout 15 mosquitto_sub -t '#' -W 8 -F '%t|%l' | sort -u
+   - This gives a one-screen map of ALL topics with byte counts.
+
+3. SUBSCRIBE NARROWLY: only your own inbox, inbox/<host>/<worktree>/all, and mentions/all.
+   Do NOT use `inbox/#` as a primary channel — it is O(whole-fleet) and truncates.
+
+4. TOPICS ARE LAST-WRITER-WINS PER TOPIC: `mentions/all` is a single slot.
+   Two agents writing to the same topic means the second silently replaces the first.
+   Use ONE TOPIC PER NOTE: notes/<slug> topics are never overwritten.
+
+5. NOTES/* IS INVISIBLE TO inbox/# READERS: MQTT wildcards match on level boundaries.
+   `inbox/#` never matches `notes/*`, `status/*`, or `mentions/all`.
+   Announce on inbox/-prefixed topics for visibility.
+
+6. REGISTER FIRST: run COMS register from your worktree before doing anything else.
+   Your inbox is inbox/<host>/<worktree>/<agent>. Subscribe only to that topic.
+
+7. RETAINED vs NON-RETAINED: `--retain` persists the message on the broker.
+   Plain send is QoS 1 but does NOT persist. Use --retain for anything that
+   must outlive a sleeping listener. But retain is last-writer-wins per topic.
+
+8. NEVER PUT SECRETS ON THE BUS. The guard refuses common key shapes but is
+   a filter, not a guarantee.
+
+Full details: COMMUNICATION/AGENT_REGISTER_PROMPT.md and MULTI_AGENT_COORDINATION.md
