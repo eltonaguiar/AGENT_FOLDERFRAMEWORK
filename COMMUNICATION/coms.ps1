@@ -1,11 +1,11 @@
 # Windows COMS. Same protocol as Linux `COMS`.
-#   powershell -File E:\AGENT_FOLDERFRAMEWORK\COMMUNICATION\coms.ps1 learn
-#   powershell -File E:\AGENT_FOLDERFRAMEWORK\COMMUNICATION\coms.ps1 register -Agent claude
-#   powershell -File E:\AGENT_FOLDERFRAMEWORK\COMMUNICATION\coms.ps1 roster
-#   powershell -File E:\AGENT_FOLDERFRAMEWORK\COMMUNICATION\coms.ps1 heartbeat
-#   powershell -File E:\AGENT_FOLDERFRAMEWORK\COMMUNICATION\coms.ps1 send <topic> <message>
-#   powershell -File E:\AGENT_FOLDERFRAMEWORK\COMMUNICATION\coms.ps1 guard [files...]
-#   powershell -File E:\AGENT_FOLDERFRAMEWORK\COMMUNICATION\coms.ps1 listen -Agent <role>
+#   powershell -File %USERPROFILE%\AGENT_FOLDERFRAMEWORK\COMMUNICATION\coms.ps1 learn
+#   powershell -File %USERPROFILE%\AGENT_FOLDERFRAMEWORK\COMMUNICATION\coms.ps1 register -Agent claude
+#   powershell -File %USERPROFILE%\AGENT_FOLDERFRAMEWORK\COMMUNICATION\coms.ps1 roster
+#   powershell -File %USERPROFILE%\AGENT_FOLDERFRAMEWORK\COMMUNICATION\coms.ps1 heartbeat
+#   powershell -File %USERPROFILE%\AGENT_FOLDERFRAMEWORK\COMMUNICATION\coms.ps1 send <topic> <message>
+#   powershell -File %USERPROFILE%\AGENT_FOLDERFRAMEWORK\COMMUNICATION\coms.ps1 guard [files...]
+#   powershell -File %USERPROFILE%\AGENT_FOLDERFRAMEWORK\COMMUNICATION\coms.ps1 listen -Agent <role>
 param(
   [Parameter(Position=0)][string]$Command = "learn",
   [string]$Agent = "",
@@ -39,13 +39,20 @@ function Slug([string]$s) {
   $t = $s.ToLower() -replace '[^a-z0-9_-]', '-'
   return $t.Trim('-')
 }
-function HostName { Slug $env:COMPUTERNAME }
+function HostName {
+  # COMS_HOST lets a machine declare a unique host segment (multi-PC setups,
+  # cloned images with colliding computer names). Defaults to %COMPUTERNAME%.
+  if ($env:COMS_HOST) { return (Slug $env:COMS_HOST) }
+  return (Slug $env:COMPUTERNAME)
+}
 function Worktree {
   # B2: never trust the current directory alone. Order: explicit -WorktreeName,
-  # then the registry row for this agent on this host, then the git toplevel,
-  # then the cwd. $script:WtSource is recorded so `check` can print it — a seat
-  # derived from a home folder reads an inbox nobody writes to and still exits 0.
+  # then COMS_WORKTREE env, then the registry row for this agent on this host,
+  # then the git toplevel, then the cwd. $script:WtSource is recorded so `check`
+  # can print it — a seat derived from a home folder reads an inbox nobody
+  # writes to and still exits 0.
   if ($WorktreeName) { $script:WtSource = "flag"; return (Slug $WorktreeName) }
+  if ($env:COMS_WORKTREE) { $script:WtSource = "env"; return (Slug $env:COMS_WORKTREE) }
   $role = ""
   if ($Agent) { $role = Slug $Agent }
   if ($role -and (Test-Path $Reg)) {
@@ -144,7 +151,7 @@ COMS - live wake bus. Git is the filing cabinet. MQTT is the intercom.
 Broker: ${Broker}:${Port} anonymous. Repo: https://github.com/eltonaguiar/AGENT_FOLDERFRAMEWORK
 Inbox: inbox/<host>/<worktree>/<agent>
 This folder: inbox/$(HostName)/$(Worktree)/<agent>
-Register here: powershell -File E:\AGENT_FOLDERFRAMEWORK\COMMUNICATION\coms.ps1 register -Agent <role>
+Register here: powershell -File $env:USERPROFILE\AGENT_FOLDERFRAMEWORK\COMMUNICATION\coms.ps1 register -Agent <role>
 Do not reinstall the broker. Do not put secrets on the bus.
 "@
   }

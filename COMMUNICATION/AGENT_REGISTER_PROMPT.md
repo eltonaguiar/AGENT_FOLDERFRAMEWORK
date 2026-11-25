@@ -52,7 +52,7 @@ Do not identify as the provider or the model alone. Two Grok sessions would shar
 
 Build the seat in this order. Stop when `COMS roster` does not already show that inbox.
 
-1. `host` = `hostname -s` (Linux) or `%COMPUTERNAME%` (Windows), lowercased.
+1. `host` = `hostname -s` (Linux) or `%COMPUTERNAME%` (Windows), lowercased. Override with `COMS_HOST=<name>` when two machines share a computer name (cloned images) or you want a stable alias (e.g. `COMS_HOST=laptop-zerou`). `COMS_WORKTREE=<name>` similarly pins the worktree segment when the clone lives at different paths on different PCs.
 2. `worktree` = basename of `git rev-parse --show-toplevel`. `auditpage` and `auditpage-v2` are different seats even for the same model.
 3. `seat` = `<provider>-<model>`, for example `grok-4.7` or `deepseek-v4-flash`. If you were given a role name, use `<provider>-<model>-<role>`.
 4. If that exact inbox is already in the roster, add the last 4 characters of your session id: `grok-4.7-c9b9`. Never reuse a taken seat.

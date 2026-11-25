@@ -16,13 +16,23 @@ REPO_URL="https://github.com/eltonaguiar/AGENT_FOLDERFRAMEWORK"
 LOCAL_REG="${HOME}/.coms/agents.jsonl"
 FRAMEWORK="${COMS_FRAMEWORK:-/home/eaguiar2015/AGENT_FOLDERFRAMEWORK}"
 
-host_name() { hostname -s 2>/dev/null || hostname; }
+host_name() {
+  # COMS_HOST lets a machine declare a unique host segment — useful when two
+  # PCs share a hostname (cloned images) or when running from a scratch dir.
+  # Defaults to the OS hostname so existing seats are unaffected.
+  if [[ -n "${COMS_HOST:-}" ]]; then printf '%s' "$COMS_HOST"; return; fi
+  hostname -s 2>/dev/null || hostname
+}
 
 slug() {
   printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9_-' '-' | sed 's/^-//;s/-$//'
 }
 
 worktree_name() {
+  # COMS_WORKTREE lets an operator pin the worktree segment of the inbox topic,
+  # independent of the current directory / git toplevel. Useful for multi-PC
+  # setups where the clone lives at different paths but should share a seat name.
+  if [[ -n "${COMS_WORKTREE:-}" ]]; then printf '%s' "$COMS_WORKTREE"; return; fi
   local top
   top="$(git rev-parse --show-toplevel 2>/dev/null || true)"
   if [[ -n "$top" ]]; then basename "$top"; else basename "$PWD"; fi
@@ -87,12 +97,12 @@ GitHub
   ${REPO_URL}
   protocol: README.MD section "Per-agent inbox"
   config:   COMMUNICATION/mqtt_bus.yaml
-  Windows clone seen at E:\\AGENT_FOLDERFRAMEWORK
+  Windows clone seen at %USERPROFILE%\\AGENT_FOLDERFRAMEWORK (or any path you choose)
   Linux copy: ${FRAMEWORK}
 
 Register from the agent's own folder
   Linux:   COMS register --agent kilo
-  Windows: powershell -File E:\\AGENT_FOLDERFRAMEWORK\\COMMUNICATION\\coms.ps1 register -Agent claude
+  Windows: powershell -File %USERPROFILE%\\AGENT_FOLDERFRAMEWORK\\COMMUNICATION\\coms.ps1 register -Agent claude
 
 Roster is MQTT retained messages on registry/# plus ${LOCAL_REG}
 Durable work still goes to Git. Never put secrets on the bus.
@@ -275,10 +285,10 @@ Linux:
   COMS register --agent <your-role>
   COMS roster
 
-Windows, after git pull in E:\AGENT_FOLDERFRAMEWORK:
-  powershell -File E:\AGENT_FOLDERFRAMEWORK\COMMUNICATION\coms.ps1 learn
-  powershell -File E:\AGENT_FOLDERFRAMEWORK\COMMUNICATION\coms.ps1 register -Agent <your-role>
-  powershell -File E:\AGENT_FOLDERFRAMEWORK\COMMUNICATION\coms.ps1 roster
+Windows, after git pull in %USERPROFILE%\AGENT_FOLDERFRAMEWORK (or any clone path):
+  powershell -File %USERPROFILE%\AGENT_FOLDERFRAMEWORK\COMMUNICATION\coms.ps1 learn
+  powershell -File %USERPROFILE%\AGENT_FOLDERFRAMEWORK\COMMUNICATION\coms.ps1 register -Agent <your-role>
+  powershell -File %USERPROFILE%\AGENT_FOLDERFRAMEWORK\COMMUNICATION\coms.ps1 roster
 
 Role is kilo, claude, reviewer, librarian, or whatever you were named. Two agents in one worktree must use different roles.
 auditpage and auditpage-v2 are different inboxes even if both are named kilo.
