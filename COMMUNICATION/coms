@@ -134,6 +134,11 @@ from pathlib import Path
 local, remote = Path(sys.argv[1]), Path(sys.argv[2])
 rows = {}
 def take(obj):
+    # A retained registry payload can be a bare JSON string/number (stale writer,
+    # or a topic that is not a registry row). Skip anything that is not an object
+    # instead of crashing the whole roster with AttributeError.
+    if not isinstance(obj, dict):
+        return
     key = obj.get("inbox") or obj.get("agent")
     if not key:
         return
